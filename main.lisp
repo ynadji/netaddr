@@ -93,6 +93,9 @@
     (with-slots (str mask) net
       (format out "str: ~a, mask: ~a" str mask))))
 
+(defun make-ip-network (str)
+  (make-instance 'ip-network :str str))
+
 (defclass ip-range (ip-pair)
   ((first-ip :initarg :first-ip :accessor first-ip)
    (last-ip :initarg :last-ip :accessor last-ip)))
@@ -105,6 +108,9 @@
 (defmethod print-object ((range ip-range) out)
   (print-unreadable-object (range out :type t)
     (format out "~a--~a" (first-ip range) (last-ip range))))
+
+(defun make-ip-range (first last)
+  (make-instance 'ip-range :first-ip (make-ip-address first) :last-ip (make-ip-address last)))
 
 ;; TODO: inherit from base class so you only need one of these. You'll probably
 ;; still need a separate one for IP-SET when you make that.
