@@ -39,9 +39,23 @@
       (format out "str: ~a, version: ~a, int: ~a" str version int))))
 
 ;; TODO: IPv6
-(defmethod mask-ip ((ip ip-address) mask)
+(defun mask-ip (ip mask)
   (let ((masked-ip-int (logand (int ip) (- (expt 2 32)
                                            (expt 2 (- 32 mask))))))
+    (setf (slot-value ip 'int) masked-ip-int)
+    (setf (slot-value ip 'str) (ip-int-to-str masked-ip-int))
+    ip))
+
+(defun integer-from-n-bits (n)
+  (loop repeat n with int = 0
+        do (setf int (logior 1 (ash int 1)))
+        finally (return int)))
+
+;; TODO: IPv6
+;; TODO: Can you generalize this so MASK-IP and MASK-IP-LOWER are the same
+;; function?
+(defun mask-ip-lower (ip mask)
+  (let ((masked-ip-int (logior (int ip) (integer-from-n-bits (- 32 mask)))))
     (setf (slot-value ip 'int) masked-ip-int)
     (setf (slot-value ip 'str) (ip-int-to-str masked-ip-int))
     ip))
@@ -55,19 +69,17 @@
    (first-ip :reader first-ip)
    (last-ip :reader last-ip)))
 
-(defmethod slot-unbound (class (instance ip-network) last-ip)
-  (declare (ignorable class))
-  ;; TODO
-  (setf (slot-value instance 'last-ip) (first-ip instance)))
-
 (defmethod initialize-instance :after ((net ip-network) &key)
   (destructuring-bind (ip mask) (str:split "/" (str net))
     (let ((mask (parse-integer mask))
-          (ip (make-ip-address ip)))
-      (mask-ip ip mask)
-      (setf (slot-value net 'first-ip) ip)
+          (first-ip (make-ip-address ip))
+          (last-ip (make-ip-address ip)))
+      (mask-ip first-ip mask)
+      (mask-ip-lower last-ip mask)
+      (setf (slot-value net 'first-ip) first-ip)
+      (setf (slot-value net 'last-ip) last-ip)
       (setf (slot-value net 'mask) mask)
-      (setf (slot-value net 'str) (format nil "~a/~a" (str ip) mask)))))
+      (setf (slot-value net 'str) (format nil "~a/~a" (str first-ip) mask)))))
 
 (defmethod print-object ((net ip-network) out)
   (print-unreadable-object (net out :type t)
@@ -80,18 +92,29 @@
       (format out "str: ~a, mask: ~a" str mask))))
 
 (defclass ip-range ()
-  ((start :initarg :start :accessor start)
-   (end :initarg :end :accessor end)))
+  ((first-ip :initarg :first-ip :accessor first-ip)
+   (last-ip :initarg :last-ip :accessor last-ip)))
 
 (defmethod initialize-instance :after ((range ip-range) &key)
-  (when (< (-> range end int) (-> range start int))
-    (error "START (~a) must be less than END (~a)"
-           (start range) (end range))))
+  (when (< (-> range last-ip int) (-> range first-ip int))
+    (error "FIRST-IP (~a) must be less than LAST-IP (~a)"
+           (first-ip range) (last-ip range))))
 
 (defmethod print-object ((range ip-range) out)
   (print-unreadable-object (range out :type t)
-    (format out "~a--~a" (start range) (end range))))
+    (format out "~a--~a" (first-ip range) (last-ip range))))
 
-;; DEFGENERIC for MEMBER of IP-RANGE and IP-NETWORK on IP-ADDRESS or STRING
+;; TODO: inherit from base class so you only need one of these. You'll probably
+;; still need a separate one for IP-SET when you make that.
+(defgeneric contains? (subnet ip)
+  (:method ((subnet ip-network) (ip ip-address))
+    (<= (-> subnet first-ip int) (int ip) (-> subnet last-ip int)))
+  (:method ((subnet ip-network) (ip string))
+    (<= (-> subnet first-ip int) (int (make-ip-address ip)) (-> subnet last-ip int)))
+
+  (:method ((subnet ip-range) (ip ip-address))
+    (<= (-> subnet first-ip int) (int ip) (-> subnet last-ip int)))
+  (:method ((subnet ip-range) (ip string))
+    (<= (-> subnet first-ip int) (int (make-ip-address ip)) (-> subnet last-ip int))))
 
 ;; DEFCLASS for IP-SET
