@@ -8,6 +8,7 @@
    (version :reader version)
    (int :reader int)))
 
+;; TODO: Better regex?
 (defun ipv4-str? (str) (find #\. str))
 (defun ipv6-str? (str) (find #\: str))
 
@@ -39,6 +40,7 @@
       (format out "str: ~a, version: ~a, int: ~a" str version int))))
 
 ;; TODO: IPv6
+;; TODO: rename MASK-IP!
 (defun mask-ip (ip mask)
   (let ((masked-ip-int (logand (int ip) (- (expt 2 32)
                                            (expt 2 (- 32 mask))))))
@@ -54,6 +56,7 @@
 ;; TODO: IPv6
 ;; TODO: Can you generalize this so MASK-IP and MASK-IP-LOWER are the same
 ;; function?
+;; TODO: rename MASK-IP-LOWER!
 (defun mask-ip-lower (ip mask)
   (let ((masked-ip-int (logior (int ip) (integer-from-n-bits (- 32 mask)))))
     (setf (slot-value ip 'int) masked-ip-int)
@@ -119,3 +122,6 @@
     (<= (-> network first-ip int) (int (make-ip-address ip)) (-> network last-ip int))))
 
 ;; DEFCLASS for IP-SET
+;;
+;; MERGE-CIDR function from netaddr just converts CIDRs to ranges, merges the
+;; ranges, then converts back to CIDRs.
