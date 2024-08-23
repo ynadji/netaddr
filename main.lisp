@@ -112,8 +112,6 @@
 (defun make-ip-range (first last)
   (make-instance 'ip-range :first-ip (make-ip-address first) :last-ip (make-ip-address last)))
 
-;; TODO: inherit from base class so you only need one of these. You'll probably
-;; still need a separate one for IP-SET when you make that.
 (defgeneric contains? (network ip)
   (:method ((network ip-pair) (ip ip-address))
     (<= (-> network first-ip int) (int ip) (-> network last-ip int)))
