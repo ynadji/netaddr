@@ -63,11 +63,13 @@
 (defun make-ip-address (str)
   (make-instance 'ip-address :str str))
 
-(defclass ip-network ()
+(defclass ip-pair ()
+    ((first-ip :reader first-ip)
+     (last-ip :reader last-ip)))
+
+(defclass ip-network (ip-pair)
   ((str :initarg :str :reader str)
-   (mask :reader mask)
-   (first-ip :reader first-ip)
-   (last-ip :reader last-ip)))
+   (mask :reader mask)))
 
 (defmethod initialize-instance :after ((net ip-network) &key)
   (destructuring-bind (ip mask) (str:split "/" (str net))
@@ -91,7 +93,7 @@
     (with-slots (str mask) net
       (format out "str: ~a, mask: ~a" str mask))))
 
-(defclass ip-range ()
+(defclass ip-range (ip-pair)
   ((first-ip :initarg :first-ip :accessor first-ip)
    (last-ip :initarg :last-ip :accessor last-ip)))
 
@@ -106,15 +108,10 @@
 
 ;; TODO: inherit from base class so you only need one of these. You'll probably
 ;; still need a separate one for IP-SET when you make that.
-(defgeneric contains? (subnet ip)
-  (:method ((subnet ip-network) (ip ip-address))
-    (<= (-> subnet first-ip int) (int ip) (-> subnet last-ip int)))
-  (:method ((subnet ip-network) (ip string))
-    (<= (-> subnet first-ip int) (int (make-ip-address ip)) (-> subnet last-ip int)))
-
-  (:method ((subnet ip-range) (ip ip-address))
-    (<= (-> subnet first-ip int) (int ip) (-> subnet last-ip int)))
-  (:method ((subnet ip-range) (ip string))
-    (<= (-> subnet first-ip int) (int (make-ip-address ip)) (-> subnet last-ip int))))
+(defgeneric contains? (network ip)
+  (:method ((network ip-pair) (ip ip-address))
+    (<= (-> network first-ip int) (int ip) (-> network last-ip int)))
+  (:method ((network ip-pair) (ip string))
+    (<= (-> network first-ip int) (int (make-ip-address ip)) (-> network last-ip int))))
 
 ;; DEFCLASS for IP-SET
