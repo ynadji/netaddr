@@ -1,7 +1,24 @@
 (in-package :netaddr)
 
+;; TODOs:
+;;
+;; Refactor to separate files.
+;;
+;; Add IPv6 tests.
+;;
 ;; When it comes time to make things faster:
 ;; https://github.com/AccelerationNet/cl-cidr-notation/blob/master/src/cl-cidr-notation.lisp
+;;
+;; Add reserved/private/etc. for v4/v6
+;; https://github.com/netaddr/netaddr/blob/master/netaddr/ip/__init__.py#L1988-L2098
+;; have similar functions like PRIVATE? ROUTABLE? RESERVED? etc.
+;;
+;; IPv6 stuff:
+;; * Handle all kinds of string formats: https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
+;; * Compress runs of 0s
+;;
+;; Features:
+;; * IP-SET data structure. See https://github.com/netaddr/netaddr/blob/master/netaddr/ip/sets.py
 
 (defclass ip-address ()
   ((str :initarg :str :reader str)
@@ -9,6 +26,8 @@
    (int :reader int)))
 
 ;; TODO: Better regex?
+;; https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
+;; https://stackoverflow.com/questions/5284147/validating-ipv4-addresses-with-regexp
 (defun ipv4-str? (str) (find #\. str))
 (defun ipv6-str? (str) (find #\: str))
 
@@ -134,8 +153,6 @@
 
 ;; DEFCLASS for IP-SET
 ;;
-;; MERGE-CIDR function from netaddr just converts CIDRs to ranges, merges the
-;; ranges, then converts back to CIDRs.
 
 ;;; Character dispatch macros
 (set-dispatch-macro-character
@@ -159,4 +176,3 @@
            (if (= 1 (length list))
                (car list)
                list)))))
-
