@@ -63,29 +63,21 @@
     (with-slots (str int) ip
       (format out "~a (~a)" str int))))
 
-;; TODO: IPv6
-;; TODO: rename MASK-IP!
-(defun mask-ip (ip mask)
-  (let ((masked-ip-int (logand (int ip) (- (expt 2 32)
-                                           (expt 2 (- 32 mask))))))
-    (setf (slot-value ip 'int) masked-ip-int)
-    (setf (slot-value ip 'str) (ip-int-to-str masked-ip-int))
-    ip))
-
 (defun integer-from-n-bits (n)
   (loop repeat n with int = 0
         do (setf int (logior 1 (ash int 1)))
         finally (return int)))
 
-;; TODO: IPv6
-;; TODO: Can you generalize this so MASK-IP and MASK-IP-LOWER are the same
-;; function?
-;; TODO: rename MASK-IP-LOWER!
-(defun mask-ip-lower (ip mask)
-  (let ((masked-ip-int (logior (int ip) (integer-from-n-bits (- 32 mask)))))
-    (setf (slot-value ip 'int) masked-ip-int)
-    (setf (slot-value ip 'str) (ip-int-to-str masked-ip-int))
-    ip))
+(defun mask-ip! (ip mask &optional (upper-or-lower :upper))
+  (let ((max-bits (ecase (version ip) (4 32) (6 128))))
+    (with-slots (int version) ip
+     (ecase upper-or-lower
+       (:lower (setf (slot-value ip 'int)
+                     (logand int (ash (integer-from-n-bits mask) (- max-bits mask)))))
+       (:upper (setf (slot-value ip 'int)
+                     (logior int (integer-from-n-bits (- max-bits mask))))))
+      (setf (slot-value ip 'str) (ip-int-to-str (int ip) version))
+      ip)))
 
 (defun make-ip-address (str)
   (make-instance 'ip-address :str str))
@@ -103,8 +95,8 @@
     (let ((mask (parse-integer mask))
           (first-ip (make-ip-address ip))
           (last-ip (make-ip-address ip)))
-      (mask-ip first-ip mask)
-      (mask-ip-lower last-ip mask)
+      (mask-ip! first-ip mask :lower)
+      (mask-ip! last-ip mask :upper)
       (setf (slot-value net 'first-ip) first-ip)
       (setf (slot-value net 'last-ip) last-ip)
       (setf (slot-value net 'mask) mask)
