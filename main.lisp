@@ -12,22 +12,28 @@
 (defun ipv4-str? (str) (find #\. str))
 (defun ipv6-str? (str) (find #\: str))
 
-;; TODO: IPv6
+(defun ip-int-to-str-v4 (int)
+  (->> (loop for offset from 24 downto 0 by 8 collect (ldb (byte 8 offset) int))
+    (mapcar #'write-to-string)
+    (str:join ".")))
+
+(defun ip-int-to-str-v6 (int)
+  (let ((*print-base* 16))
+    (->> (loop for offset from 112 downto 0 by 16 collect (ldb (byte 16 offset) int))
+      (mapcar #'write-to-string)
+      (str:join ":"))))
+
 (defun ip-int-to-str (int &optional (type 4))
-  (declare (ignore type))
-  ;; (ldb (byte 8 24) (int (make-ip-address "10.20.30.40")))
-  ;; gets the 10. what about the reverse?
-  (let ((octets (list (ash (logand int (ash #xFF 24)) -24)
-                      (ash (logand int (ash #xFF 16)) -16)
-                      (ash (logand int (ash #xFF 8)) -8)
-                      (logand int #xFF))))
-    (str:join "." (mapcar #'write-to-string octets))))
+  (ecase type
+    (4 (ip-int-to-str-v4 int))
+    (6 (ip-int-to-str-v6 int))))
 
 (defun expand-ipv6-addr-to-parts (str)
   (let* ((parts (str:split ":" str))
          (num-non-empties (count "" parts :test-not #'equal))
          (zeroes (loop repeat (- 8 num-non-empties) collect "0")))
     (mapcar (lambda (x) (parse-integer x :radix 16))
+            ;; TODO: use -<>
             (remove "" (ax:flatten (substitute zeroes "" parts :test #'equal :count 1)) :test #'equal))))
 
 (defun ipv6-parts-to-int (parts)
