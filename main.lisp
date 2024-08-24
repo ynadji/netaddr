@@ -24,34 +24,38 @@
     (str:join "." (mapcar #'write-to-string octets))))
 
 (defun expand-ipv6-addr-to-parts (str)
-  (flet ((empty? (str) (zerop (length str))))
-   (let* ((parts (str:split ":" str))
-          (len (length parts)))
-     (mapcar (lambda (x) (parse-integer x :radix 16))
-             (cond ((= len 8) parts)
-                   ((> (length (remove-if-not #'empty? parts)) 1)
-                    (error "IPv6 string address can only contain one ::"))
-                   (t (ax:flatten (substitute (loop repeat 6 collect "0") "" parts :test #'equal))))))))
+  (let* ((parts (str:split ":" str))
+         (num-non-empties (count "" parts :test-not #'equal))
+         (zeroes (loop repeat (- 8 num-non-empties) collect "0")))
+    (mapcar (lambda (x) (parse-integer x :radix 16))
+            (remove "" (ax:flatten (substitute zeroes "" parts :test #'equal :count 1)) :test #'equal))))
 
 (defun ipv6-parts-to-int (parts)
-  (loop for x from 112 downto 0 by 16
-        for part in parts sum (ash part x)))
+    (loop for x from 112 downto 0 by 16
+          for part in parts sum (ash part x)))
 
-;; TODO: IPv6
+(defun ipv6-str-to-int (str)
+  (-> str expand-ipv6-addr-to-parts ipv6-parts-to-int))
+
+(defun ipv4-str-to-int (str)
+  (let ((octets (->> str (str:split ".") (mapcar #'parse-integer))))
+    (loop for x from 24 downto 0 by 8
+          for octet in octets sum (ash octet x))))
+
 (defmethod initialize-instance :after ((ip ip-address) &key)
-  (let ((octets (->> ip str (str:split ".") (mapcar #'parse-integer)))
-        (int 0))
-    (setf (slot-value ip 'version) 4)
-    (incf int (ash (first octets) 24))
-    (incf int (ash (second octets) 16))
-    (incf int (ash (third octets) 8))
-    (incf int (fourth octets))
-    (setf (slot-value ip 'int) int)))
+  (with-slots (str) ip
+    (cond ((ipv4-str? str)
+           (setf (slot-value ip 'version) 4)
+           (setf (slot-value ip 'int) (ipv4-str-to-int str)))
+          ((ipv6-str? str)
+           (setf (slot-value ip 'version) 6)
+           (setf (slot-value ip 'int) (ipv6-str-to-int str)))
+          (t (error "~a is not an IP address string" str)))))
 
 (defmethod print-object ((ip ip-address) out)
   (print-unreadable-object (ip out :type t)
-    (with-slots (str version int) ip
-      (format out "str: ~a, version: ~a, int: ~a" str version int))))
+    (with-slots (str int) ip
+      (format out "~a (~a)" str int))))
 
 ;; TODO: IPv6
 ;; TODO: rename MASK-IP!
@@ -103,12 +107,7 @@
 (defmethod print-object ((net ip-network) out)
   (print-unreadable-object (net out :type t)
     (with-slots (str mask) net
-      (format out "str: ~a, mask: ~a" str mask))))
-
-(defmethod print-object ((net ip-network) out)
-  (print-unreadable-object (net out :type t)
-    (with-slots (str mask) net
-      (format out "str: ~a, mask: ~a" str mask))))
+      (format out "~a" str))))
 
 (defun make-ip-network (str)
   (make-instance 'ip-network :str str))
@@ -124,7 +123,7 @@
 
 (defmethod print-object ((range ip-range) out)
   (print-unreadable-object (range out :type t)
-    (format out "~a--~a" (first-ip range) (last-ip range))))
+    (format out "~a--~a" (-> range first-ip str) (-> range last-ip str))))
 
 (defun make-ip-range (first last)
   (make-instance 'ip-range :first-ip (make-ip-address first) :last-ip (make-ip-address last)))
