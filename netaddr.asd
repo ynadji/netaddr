@@ -3,7 +3,7 @@
   :description "IP and CIDR manipulation library"
   :author "Yacin Nadji <ynadji@gmail.com>"
   :license "MIT"
-  :depends-on ("str" "uiop" "arrow-macros")
+  :depends-on ("str" "uiop" "arrow-macros" "alexandria")
   :components ((:file "packages")
                (:file "main"))
   :in-order-to ((test-op (test-op :netaddr/tests))))

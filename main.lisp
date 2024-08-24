@@ -23,6 +23,20 @@
                       (logand int #xFF))))
     (str:join "." (mapcar #'write-to-string octets))))
 
+(defun expand-ipv6-addr-to-parts (str)
+  (flet ((empty? (str) (zerop (length str))))
+   (let* ((parts (str:split ":" str))
+          (len (length parts)))
+     (mapcar (lambda (x) (parse-integer x :radix 16))
+             (cond ((= len 8) parts)
+                   ((> (length (remove-if-not #'empty? parts)) 1)
+                    (error "IPv6 string address can only contain one ::"))
+                   (t (ax:flatten (substitute (loop repeat 6 collect "0") "" parts :test #'equal))))))))
+
+(defun ipv6-parts-to-int (parts)
+  (loop for x from 112 downto 0 by 16
+        for part in parts sum (ash part x)))
+
 ;; TODO: IPv6
 (defmethod initialize-instance :after ((ip ip-address) &key)
   (let ((octets (->> ip str (str:split ".") (mapcar #'parse-integer)))
