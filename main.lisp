@@ -144,3 +144,27 @@
 ;;
 ;; MERGE-CIDR function from netaddr just converts CIDRs to ranges, merges the
 ;; ranges, then converts back to CIDRs.
+
+;;; Character dispatch macros
+(set-dispatch-macro-character
+ #\# #\I
+ (lambda (stream sub-char infix)
+   (declare (ignore sub-char infix))
+   ;; Returns (list 'quote (ip1 ip2 ...)) so (ip1 ip2 ...) isn't interpreted as
+   ;; a function call.
+   (list 'quote
+         (let ((list (mapcar #'make-ip-address (read stream))))
+           (if (= 1 (length list))
+               (car list)
+               list)))))
+
+(set-dispatch-macro-character
+ #\# #\N
+ (lambda (stream sub-char infix)
+   (declare (ignore sub-char infix))
+   (list 'quote
+         (let ((list (mapcar #'make-ip-network (read stream))))
+           (if (= 1 (length list))
+               (car list)
+               list)))))
+
