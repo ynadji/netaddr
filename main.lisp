@@ -15,7 +15,6 @@
 ;;
 ;; IPv6 stuff:
 ;; * Handle all kinds of string formats: https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
-;; * Compress runs of 0s
 ;;
 ;; Features:
 ;; * IP-SET data structure. See https://github.com/netaddr/netaddr/blob/master/netaddr/ip/sets.py
@@ -55,9 +54,22 @@
             ;; TODO: use -<>
             (remove "" (ax:flatten (substitute zeroes "" parts :test #'equal :count 1)) :test #'equal))))
 
+(defun compress-ipv6-str (str)
+  (let* ((largest-zero-run (->> str
+                             (cl-ppcre:all-matches-as-strings "(0:?)*")
+                             (mapcar (lambda (s) (count #\0 s)))
+                             (apply #'max)))
+         (zeroes (loop repeat largest-zero-run collect "0")))
+    (if (< largest-zero-run 2)
+        str
+        (-<>> zeroes
+          (str:join ":")
+          (format nil ":?~a:?")
+          (str:replace-first <> "::" str :regex t)))))
+
 (defun ipv6-parts-to-int (parts)
-    (loop for x from 112 downto 0 by 16
-          for part in parts sum (ash part x)))
+  (loop for x from 112 downto 0 by 16
+        for part in parts sum (ash part x)))
 
 (defun ipv6-str-to-int (str)
   (-> str expand-ipv6-addr-to-parts ipv6-parts-to-int))
@@ -73,6 +85,7 @@
            (setf (slot-value ip 'version) 4)
            (setf (slot-value ip 'int) (ipv4-str-to-int str)))
           ((ipv6-str? str)
+           (setf (slot-value ip 'str) (compress-ipv6-str str))
            (setf (slot-value ip 'version) 6)
            (setf (slot-value ip 'int) (ipv6-str-to-int str)))
           (t (error "~a is not an IP address string" str)))))
@@ -116,6 +129,9 @@
           (last-ip (make-ip-address ip)))
       (mask-ip! first-ip mask :lower)
       (mask-ip! last-ip mask :upper)
+      (when (= 6 (version first-ip))
+        (setf (slot-value first-ip 'str)
+              (-> first-ip str compress-ipv6-str)))
       (setf (slot-value net 'first-ip) first-ip)
       (setf (slot-value net 'last-ip) last-ip)
       (setf (slot-value net 'mask) mask)

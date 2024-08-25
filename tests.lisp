@@ -44,6 +44,7 @@
     (is (not (contains? net "0.0.0.0")))
     (is (not (contains? net "255.255.255.255")))
     (is (not (contains? net "10.20.29.255")))
+
     (is (contains? range "192.168.0.0"))
     (is (contains? range "192.168.125.255"))
     (is (contains? range "192.168.13.79"))
@@ -51,3 +52,9 @@
     (is (not (contains? range "192.168.126.0")))
     (is (not (contains? range "0.0.0.0")))
     (is (not (contains? range "255.255.255.255")))))
+
+(test compress-ipv6-str
+  (is (string= "0:0:1::" (netaddr::compress-ipv6-str "0:0:1:0:0:0:0:0")))
+  (is (string= "0:0:1::1" (netaddr::compress-ipv6-str "0:0:1:0:0:0:0:1")))
+  (is (string= "::1:0:0:1:0:0" (netaddr::compress-ipv6-str "0:0:1:0:0:1:0:0")))
+  (is (string= "::" (netaddr::compress-ipv6-str "0:0:0:0:0:0:0:0"))))
