@@ -54,18 +54,41 @@
             ;; TODO: use -<>
             (remove "" (ax:flatten (substitute zeroes "" parts :test #'equal :count 1)) :test #'equal))))
 
+(defun remove-leading-zeroes (str)
+  (let ((parts (str:split ":" str)))
+    (str:join ":"
+     (loop for part in parts
+           collect (cl-ppcre:regex-replace "^0+(.+)$" part "\\1")))))
+
+(defun largest-run (item sequence)
+  (loop for i from 0 for x in sequence
+        with len = 0 with pos = -1 with max = 0 with max-pos = 0 do
+          (if (string= item x)
+              (progn (incf len)
+                     (when (minusp pos)
+                      (setf pos i))
+                     (when (> len max)
+                       (setf max len max-pos pos)))
+              (setf len 0 pos -1))
+        finally (return (values max max-pos))))
+
 (defun compress-ipv6-str (str)
-  (let* ((largest-zero-run (->> str
-                             (cl-ppcre:all-matches-as-strings "(0:?)*")
-                             (mapcar (lambda (s) (count #\0 s)))
-                             (apply #'max)))
-         (zeroes (loop repeat largest-zero-run collect "0")))
-    (if (< largest-zero-run 2)
-        str
-        (-<>> zeroes
-          (str:join ":")
-          (format nil ":?~a:?")
-          (str:replace-first <> "::" str :regex t)))))
+  (let* ((str (remove-leading-zeroes str))
+         (colon-list (list ":"))
+         (parts (str:split ":" str)))
+    (multiple-value-bind (len pos) (largest-run "0" parts)
+      (let* ((parts (if (< len 2)
+                        parts
+                        (-<> parts
+                          (replace <> colon-list :start1 pos :end1 (+ len pos))
+                          (delete "0" <> :test #'string= :start pos :end (+ len pos)))))
+            (new-parts-len (length parts)))
+        (cond ((< len 2) str) ; No run of 0s
+              ((= new-parts-len 1) "::") ; All run of 0s
+              ((and (plusp pos)
+                    (< (+ pos len) 8)) ; Run of 0s was in the middle
+               (str:join ":" (nsubstitute "" ":" parts :test #'string=)))
+              (t (str:join ":" parts)))))))
 
 (defun ipv6-parts-to-int (parts)
   (loop for x from 112 downto 0 by 16
