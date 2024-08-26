@@ -4,6 +4,10 @@
 ;;
 ;; Refactor to separate files.
 ;;
+;; Allow instantiation by string, int.
+;;
+;; COPY methods for each data structure
+;;
 ;; When it comes time to make things faster:
 ;; https://github.com/AccelerationNet/cl-cidr-notation/blob/master/src/cl-cidr-notation.lisp
 ;;
