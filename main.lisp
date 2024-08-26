@@ -20,6 +20,17 @@
 ;;
 ;; Features:
 ;; * IP-SET data structure. See https://github.com/netaddr/netaddr/blob/master/netaddr/ip/sets.py
+;; Required functions:
+;; * SUBTRACT
+;; * COMPACT
+;; * DISJOINT?
+;; * SUBSET?
+;; * SUPERSET?
+;; * UNION
+;; * INTERSECTION
+;; * SYMMETRIC-DIFFERENCE
+;; * DIFFERENCE
+;; * CONTIGUOUS?
 
 (defclass ip-address ()
   ((str :initarg :str :reader str)
