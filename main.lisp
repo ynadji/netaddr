@@ -31,6 +31,10 @@
 ;; * SYMMETRIC-DIFFERENCE
 ;; * DIFFERENCE
 ;; * CONTIGUOUS?
+;;
+;; Add MAKE-IP-LIKE so you can just use #I() for everything? Just search for
+;; "/", "-", or nothing? Unsure what the performance impact would be so maybe
+;; marinate on this for a minute.
 
 (defclass ip-address ()
   ((str :initarg :str :reader str)
@@ -153,6 +157,10 @@
 (defclass ip-pair ()
     ((first-ip :reader first-ip)
      (last-ip :reader last-ip)))
+
+(defun size (network-or-range)
+  (1+ (- (-> network-or-range last-ip int)
+         (-> network-or-range first-ip int))))
 
 (defclass ip-network (ip-pair)
   ((str :initarg :str :reader str)

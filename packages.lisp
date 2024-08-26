@@ -6,4 +6,5 @@
            :make-ip-network
            :make-ip-range
            :contains?
-           :str))
+           :str
+           :size))

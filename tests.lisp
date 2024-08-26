@@ -1,6 +1,6 @@
 (in-package :cl-user)
 (defpackage netaddr/tests
-  (:use #:cl #:netaddr)
+  (:use #:cl #:netaddr #:arrow-macros)
   (:import-from #:fiveam
                 #:def-suite
                 #:in-suite
@@ -76,3 +76,9 @@
   (is (string= "::" (netaddr::compress-ipv6-str "0:0:0:0:0:0:0:0")))
   (is (string= "::" (netaddr::compress-ipv6-str "0000:0000:0000:0000:0000:0000:0000:0000")))
   (is (string= "1:23:444:1000:123:100::" (netaddr::compress-ipv6-str "0001:0023:0444:1000:0123:0100:0000:0000"))))
+
+(test size
+  (is (= 1 (-> "0.0.0.0/32" make-ip-network size)))
+  (is (= (expt 2 32) (-> "0.0.0.0/0" make-ip-network size)))
+  (is (= 1 (-> "::/128" make-ip-network size)))
+  (is (= (expt 2 128) (-> "::/0" make-ip-network size))))
