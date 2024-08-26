@@ -4,8 +4,6 @@
 ;;
 ;; Refactor to separate files.
 ;;
-;; Add IPv6 tests.
-;;
 ;; When it comes time to make things faster:
 ;; https://github.com/AccelerationNet/cl-cidr-notation/blob/master/src/cl-cidr-notation.lisp
 ;;
