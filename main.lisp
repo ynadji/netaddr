@@ -4,7 +4,8 @@
 ;;
 ;; Refactor to separate files.
 ;;
-;; Allow instantiation by string, int.
+;; Allow instantiation by string, int. Add VERSION so ints that are valid IPv4
+;; can be forced to be IPv6.
 ;;
 ;; COPY methods for each data structure
 ;;
@@ -35,6 +36,8 @@
 ;; Add MAKE-IP-LIKE so you can just use #I() for everything? Just search for
 ;; "/", "-", or nothing? Unsure what the performance impact would be so maybe
 ;; marinate on this for a minute.
+;;
+;; IP-ADD and IP-SUBTRACT
 
 (defclass ip-address ()
   ((str :initarg :str :reader str)

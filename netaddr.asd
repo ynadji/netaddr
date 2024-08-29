@@ -5,7 +5,8 @@
   :license "MIT"
   :depends-on ("str" "uiop" "arrow-macros" "alexandria" "cl-ppcre")
   :components ((:file "packages")
-               (:file "main"))
+               (:file "main")
+               (:file "reserved"))
   :in-order-to ((test-op (test-op :netaddr/tests))))
 
 (asdf:defsystem :netaddr/tests
