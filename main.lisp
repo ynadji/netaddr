@@ -33,10 +33,6 @@
 ;; * DIFFERENCE
 ;; * CONTIGUOUS?
 ;;
-;; Add MAKE-IP-LIKE so you can just use #I() for everything? Just search for
-;; "/", "-", or nothing? Unsure what the performance impact would be so maybe
-;; marinate on this for a minute.
-;;
 ;; IP-ADD and IP-SUBTRACT
 
 (defclass ip-address ()
@@ -214,28 +210,20 @@
   (:method ((network ip-pair) (ip string))
     (<= (-> network first-ip int) (int (make-ip-address ip)) (-> network last-ip int))))
 
+(defun make-ip-like (ip-or-network-or-range-str)
+  (cond ((find #\/ ip-or-network-or-range-str) (make-ip-network ip-or-network-or-range-str))
+        ((find #\- ip-or-network-or-range-str) (apply #'make-ip-range (str:split "-" ip-or-network-or-range-str)))
+        (t (make-ip-address ip-or-network-or-range-str))))
+
 ;; DEFCLASS for IP-SET
 ;;
 
 ;;; Character dispatch macros
-(set-dispatch-macro-character
- #\# #\I
- (lambda (stream sub-char infix)
-   (declare (ignore sub-char infix))
-   ;; Returns (list 'quote (ip1 ip2 ...)) so (ip1 ip2 ...) isn't interpreted as
-   ;; a function call.
-   (list 'quote
-         (let ((list (mapcar #'make-ip-address (read stream))))
-           (if (= 1 (length list))
-               (car list)
-               list)))))
+(defun |#i-reader| (stream sub-char infix)
+  (declare (ignore sub-char infix))
+  (let ((ip-likes (read stream)))
+    (if (= 1 (length ip-likes))
+      `(make-ip-like ,(car ip-likes))
+      `(list ,@(mapcar (lambda (x) `(make-ip-like ,x)) ip-likes)))))
 
-(set-dispatch-macro-character
- #\# #\N
- (lambda (stream sub-char infix)
-   (declare (ignore sub-char infix))
-   (list 'quote
-         (let ((list (mapcar #'make-ip-network (read stream))))
-           (if (= 1 (length list))
-               (car list)
-               list)))))
+(set-dispatch-macro-character #\# #\I #'|#i-reader|)
