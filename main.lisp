@@ -12,10 +12,6 @@
 ;; When it comes time to make things faster:
 ;; https://github.com/AccelerationNet/cl-cidr-notation/blob/master/src/cl-cidr-notation.lisp
 ;;
-;; Add reserved/private/etc. for v4/v6
-;; https://github.com/netaddr/netaddr/blob/master/netaddr/ip/__init__.py#L1988-L2098
-;; have similar functions like PRIVATE? ROUTABLE? RESERVED? etc.
-;;
 ;; IPv6 stuff:
 ;; * Handle all kinds of string formats: https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
 ;;
