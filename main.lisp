@@ -236,7 +236,7 @@
   (flet ((get-bits (first-int last-int version)
            (let ((diff+1 (1+ (- last-int first-int))))
              (ecase version
-               (4 (floor (log diff+1 2)))
+               (4 (floor (log (coerce diff+1 'double-float) 2)))
                (6 (multiple-value-bind (q r) (cr:floor-r (cr:log-r diff+1 2))
                     ;; NB: We only need 1 bit of information (was the remainder
                     ;; 0 or not-zero.
