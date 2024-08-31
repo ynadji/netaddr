@@ -108,7 +108,7 @@
         for part in parts sum (ash part x)))
 
 (defun ipv6-str-to-int (str)
-  (-> str expand-ipv6-addr-to-parts ipv6-parts-to-int))
+  (ipv6-parts-to-int (expand-ipv6-addr-to-parts str)))
 
 (defun ipv4-str-to-int (str)
   (let ((octets (->> str (str:split ".") (mapcar #'parse-integer))))
@@ -165,8 +165,8 @@
      (last-ip :reader last-ip)))
 
 (defun size (network-or-range)
-  (1+ (- (-> network-or-range last-ip int)
-         (-> network-or-range first-ip int))))
+  (1+ (- (int (last-ip network-or-range))
+         (int (first-ip network-or-range)))))
 
 (defclass ip-network (ip-pair)
   ((str :initarg :str :reader str)
@@ -181,7 +181,7 @@
       (mask-ip! last-ip mask :upper)
       (when (= 6 (version first-ip))
         (setf (slot-value first-ip 'str)
-              (-> first-ip str compress-ipv6-str)))
+              (compress-ipv6-str (str first-ip))))
       (setf (slot-value net 'first-ip) first-ip)
       (setf (slot-value net 'last-ip) last-ip)
       (setf (slot-value net 'mask) mask)
@@ -200,22 +200,22 @@
    (last-ip :initarg :last-ip :accessor last-ip)))
 
 (defmethod initialize-instance :after ((range ip-range) &key)
-  (when (< (-> range last-ip int) (-> range first-ip int))
+  (when (< (int (last-ip range)) (int (first-ip range)))
     (error "FIRST-IP (~a) must be less than LAST-IP (~a)"
            (first-ip range) (last-ip range))))
 
 (defmethod print-object ((range ip-range) out)
   (print-unreadable-object (range out :type t)
-    (format out "~a--~a" (-> range first-ip str) (-> range last-ip str))))
+    (format out "~a--~a" (str (first-ip range)) (str (last-ip range)))))
 
 (defun make-ip-range (first last)
   (make-instance 'ip-range :first-ip (make-ip-address first) :last-ip (make-ip-address last)))
 
 (defgeneric contains? (network ip)
   (:method ((network ip-pair) (ip ip-address))
-    (<= (-> network first-ip int) (int ip) (-> network last-ip int)))
+    (<= (int (first-ip network)) (int ip) (int (last-ip network))))
   (:method ((network ip-pair) (ip string))
-    (<= (-> network first-ip int) (int (make-ip-address ip)) (-> network last-ip int))))
+    (<= (int (first-ip network)) (int (make-ip-address ip)) (int (last-ip network)))))
 
 (defun make-ip-like (ip-or-network-or-range-str)
   (cond ((find #\/ ip-or-network-or-range-str) (make-ip-network ip-or-network-or-range-str))
@@ -241,18 +241,18 @@
                     ;; NB: We only need 1 bit of information (was the remainder
                     ;; 0 or not-zero.
                     (values q (cr:rational-approx-r r 1))))))))
-    (let ((first-str (-> ip-range first-ip str))
-          (first-int (-> ip-range first-ip int))
-          (last-int (-> ip-range last-ip int))
-          (last-str (-> ip-range last-ip str))
-          (version (-> ip-range first-ip version))
-          (max-bits (ecase (-> ip-range first-ip version) (4 32) (6 128))))
+    (let ((first-str (str (first-ip ip-range)))
+          (first-int (int (first-ip ip-range)))
+          (last-str (str (last-ip ip-range)))
+          (last-int (int (last-ip ip-range)))
+          (version (version (first-ip ip-range)))
+          (max-bits (ecase (version (first-ip ip-range)) (4 32) (6 128))))
       (multiple-value-bind (bits remainder) (get-bits first-int last-int version)
         (let ((net (make-ip-network (format nil "~a/~a" first-str (- max-bits bits)))))
           (if (= remainder 0)
               (list net)
               (cons net (range->cidrs (make-ip-range (str (make-instance 'ip-address
-                                                                         :int (-> net last-ip int 1+)))
+                                                                         :int (1+ (int (last-ip net)))))
                                                      last-str)))))))))
 
 ;; DEFCLASS for IP-SET
