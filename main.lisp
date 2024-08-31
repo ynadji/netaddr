@@ -4,9 +4,6 @@
 ;;
 ;; Refactor to separate files.
 ;;
-;; Allow instantiation by string, int. Add VERSION so ints that are valid IPv4
-;; can be forced to be IPv6.
-;;
 ;; COPY methods for each data structure
 ;;
 ;; When it comes time to make things faster:
@@ -34,7 +31,7 @@
 (defclass ip-address ()
   ((str :initarg :str :reader str)
    (version :reader version)
-   (int :reader int)))
+   (int :initarg :int :reader int)))
 
 ;; TODO: Better regex?
 ;; https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
@@ -115,15 +112,25 @@
           for octet in octets sum (ash octet x))))
 
 (defmethod initialize-instance :after ((ip ip-address) &key)
-  (with-slots (str) ip
-    (cond ((ipv4-str? str)
-           (setf (slot-value ip 'version) 4)
-           (setf (slot-value ip 'int) (ipv4-str-to-int str)))
-          ((ipv6-str? str)
-           (setf (slot-value ip 'str) (compress-ipv6-str str))
-           (setf (slot-value ip 'version) 6)
-           (setf (slot-value ip 'int) (ipv6-str-to-int str)))
-          (t (error "~a is not an IP address string" str)))))
+  (cond ((slot-boundp ip 'str)
+         (with-slots (str) ip
+            (cond ((ipv4-str? str)
+                   (setf (slot-value ip 'version) 4)
+                   (setf (slot-value ip 'int) (ipv4-str-to-int str)))
+                  ((ipv6-str? str)
+                   (setf (slot-value ip 'str) (compress-ipv6-str str))
+                   (setf (slot-value ip 'version) 6)
+                   (setf (slot-value ip 'int) (ipv6-str-to-int str)))
+                  (t (error "~a is not an IP address string" str)))))
+        ((slot-boundp ip 'int)
+         (with-slots (int) ip
+           ;; TODO: cleaner way to do this maybe?
+           (if (< int (expt 3 32))
+               (progn (setf (slot-value ip 'version) 4)
+                      (setf (slot-value ip 'str) (ip-int-to-str int)))
+               (progn (setf (slot-value ip 'version) 6)
+                      (setf (slot-value ip 'str) (ip-int-to-str int 6))))))
+        (t (error "Must specify either STR or INT."))))
 
 (defmethod print-object ((ip ip-address) out)
   (print-unreadable-object (ip out :type t)
