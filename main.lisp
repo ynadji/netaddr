@@ -219,7 +219,7 @@
   (declare (ignore sub-char infix))
   (let ((ip-likes (read stream)))
     (if (= 1 (length ip-likes))
-      `(make-ip-like ,(car ip-likes))
-      `(list ,@(mapcar (lambda (x) `(make-ip-like ,x)) ip-likes)))))
+        `(make-ip-like ,(car ip-likes))
+        `(list ,@(mapcar (lambda (x) `(make-ip-like ,x)) ip-likes)))))
 
 (set-dispatch-macro-character #\# #\I #'|#i-reader|)
