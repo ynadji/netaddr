@@ -28,6 +28,10 @@
 ;;
 ;; IP-ADD and IP-SUBTRACT
 
+;; NB: Needed to bump this to ensure I can compute enough bits in RANGE->CIDR
+;; for very large IPv6 integers.
+(setf cr:*creal-tolerance* 120)
+
 (defclass ip-address ()
   ((str :initarg :str :reader str)
    (version :reader version)
@@ -217,6 +221,39 @@
   (cond ((find #\/ ip-or-network-or-range-str) (make-ip-network ip-or-network-or-range-str))
         ((find #\- ip-or-network-or-range-str) (apply #'make-ip-range (str:split "-" ip-or-network-or-range-str)))
         (t (make-ip-address ip-or-network-or-range-str))))
+
+;; NB: Wraps. Can I use DEFINE-SETF-EXPANDER for this?
+(defun ip-incf (ip &optional (n 1))
+  (setf (slot-value ip 'int) (+ n (int ip)))
+  (setf (slot-value ip 'str) (ip-int-to-str (int ip) (slot-value ip 'version)))
+  ip)
+
+;; TODO:
+;; * Write tests for this boi.
+;; * Might not be super efficient from allocations and recursiveness.
+;; Particularly for poorly CIDR-aligned IPv6 ranges. Lots of CONSing.
+(defun range->cidrs (ip-range)
+  (flet ((get-bits (first-int last-int version)
+           (let ((diff+1 (1+ (- last-int first-int))))
+             (ecase version
+               (4 (floor (log diff+1 2)))
+               (6 (multiple-value-bind (q r) (cr:floor-r (cr:log-r diff+1 2))
+                    ;; NB: We only need 1 bit of information (was the remainder
+                    ;; 0 or not-zero.
+                    (values q (cr:rational-approx-r r 1))))))))
+    (let ((first-str (-> ip-range first-ip str))
+          (first-int (-> ip-range first-ip int))
+          (last-int (-> ip-range last-ip int))
+          (last-str (-> ip-range last-ip str))
+          (version (-> ip-range first-ip version))
+          (max-bits (ecase (-> ip-range first-ip version) (4 32) (6 128))))
+      (multiple-value-bind (bits remainder) (get-bits first-int last-int version)
+        (let ((net (make-ip-network (format nil "~a/~a" first-str (- max-bits bits)))))
+          (if (= remainder 0)
+              (list net)
+              (cons net (range->cidrs (make-ip-range (str (make-instance 'ip-address
+                                                                         :int (-> net last-ip int 1+)))
+                                                     last-str)))))))))
 
 ;; DEFCLASS for IP-SET
 ;;

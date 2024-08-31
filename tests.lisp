@@ -82,3 +82,7 @@
   (is (= (expt 2 32) (-> "0.0.0.0/0" make-ip-network size)))
   (is (= 1 (-> "::/128" make-ip-network size)))
   (is (= (expt 2 128) (-> "::/0" make-ip-network size))))
+
+(test range->cidrs
+  (is (= (size #I("::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe"))
+         (apply #'+ (mapcar #'size (netaddr::range->cidrs #I("::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe")))))))
