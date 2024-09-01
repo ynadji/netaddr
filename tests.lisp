@@ -88,3 +88,18 @@
          (apply #'+ (mapcar #'size (netaddr::range->cidrs #I("::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe"))))))
   (is (= (size #I("0.0.0.0-255.255.255.254"))
          (apply #'+ (mapcar #'size (netaddr::range->cidrs #I("0.0.0.0-255.255.255.254")))))))
+
+(test contiguous?
+  )
+
+(test disjoint?
+  )
+
+(test subset?
+  )
+
+(test superset?
+  )
+
+(test ip=
+  )

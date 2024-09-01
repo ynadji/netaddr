@@ -217,6 +217,14 @@
   (:method ((network ip-pair) (ip string))
     (<= (int (first-ip network)) (int (make-ip-address ip)) (int (last-ip network)))))
 
+(defgeneric ip= (ip-like-1 ip-like-2)
+  (:method ((ip1 ip-address) (ip2 ip-address))
+    (and (= (int ip1) (int ip2))
+         (= (version ip1) (version ip2))))
+  (:method ((p1 ip-pair) (p2 ip-pair))
+    (and (ip= (first-ip p1) (first-ip p2))
+         (ip= (last-ip p1) (last-ip p2)))))
+
 (defun make-ip-like (ip-or-network-or-range-str)
   (cond ((find #\/ ip-or-network-or-range-str) (make-ip-network ip-or-network-or-range-str))
         ((find #\- ip-or-network-or-range-str) (apply #'make-ip-range (str:split "-" ip-or-network-or-range-str)))
@@ -228,10 +236,8 @@
   (setf (slot-value ip 'str) (ip-int-to-str (int ip) (slot-value ip 'version)))
   ip)
 
-;; TODO:
-;; * Write tests for this boi.
-;; * Might not be super efficient from allocations and recursiveness.
-;; Particularly for poorly CIDR-aligned IPv6 ranges. Lots of CONSing.
+;; Might not be super efficient from allocations and recursiveness. Particularly
+;; for poorly CIDR-aligned IPv6 ranges. Lots of CONSing.
 (defun range->cidrs (ip-range)
   (flet ((get-bits (first-int last-int version)
            (let ((diff+1 (1+ (- last-int first-int))))
@@ -254,6 +260,27 @@
               (cons net (range->cidrs (make-ip-range (str (make-instance 'ip-address
                                                                          :int (1+ (int (last-ip net)))))
                                                      last-str)))))))))
+
+(defun subset? (pair1 pair2)
+  (< (int (first-ip pair2))
+     (int (first-ip pair1))
+     (int (last-ip pair1))
+     (int (last-ip pair2))))
+
+(defun superset? (pair1 pair2)
+  (subset? pair2 pair1))
+
+(defun disjoint? (pair1 pair2)
+  (or (< (int (last-ip pair1))
+         (int (first-ip pair2)))
+      (< (int (last-ip pair2))
+         (int (first-ip pair1)))))
+
+(defun contiguous? (pair1 pair2)
+  (or (= 1 (abs (- (int (last-ip pair1))
+                   (int (first-ip pair2)))))
+      (= 1 (abs (- (int (last-ip pair2))
+                   (int (first-ip pair1)))))))
 
 ;; DEFCLASS for IP-SET
 ;;
