@@ -282,6 +282,19 @@
       (= 1 (abs (- (int (last-ip pair2))
                    (int (first-ip pair1)))))))
 
+(defgeneric compare (ip-like-1 ip-like-2)
+  (:method ((ip1 ip-address) (ip2 ip-address))
+    (< (int ip1) (int ip2)))
+  (:method ((ip ip-address) (p ip-pair))
+    (< (int ip) (int (first-ip p))))
+  (:method ((p ip-pair) (ip ip-address))
+    (not (compare ip p)))
+  (:method ((p1 ip-pair) (p2 ip-pair))
+    (or (< (int (first-ip p1)) (int (first-ip p2)))
+        (and (ip= (first-ip p1) (first-ip p2))
+             (> (int (last-ip p1))
+                (int (last-ip p2)))))))
+
 ;; DEFCLASS for IP-SET
 ;;
 
