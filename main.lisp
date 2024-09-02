@@ -27,12 +27,18 @@
 ;; * CONTIGUOUS?
 ;;
 ;; IP-ADD and IP-SUBTRACT
+;;
+;; Add documentation with STAPLE. See the following for examples:
+;; * https://shinmera.github.io/open-with/
+;; * https://github.com/Shinmera/open-with/blob/main/README.mess
 
 ;; NB: Needed to bump this to ensure I can compute enough bits in RANGE->CIDR
 ;; for very large IPv6 integers.
 (setf cr:*creal-tolerance* 120)
 
-(defclass ip-address ()
+(defclass ip-like () ((version :reader version)))
+
+(defclass ip-address (ip-like)
   ((str :initarg :str :reader str)
    (version :reader version)
    (int :initarg :int :reader int)))
@@ -138,8 +144,7 @@
 
 (defmethod print-object ((ip ip-address) out)
   (print-unreadable-object (ip out :type t)
-    (with-slots (str int) ip
-      (format out "~a (~a)" str int))))
+    (format out "~a" (str ip))))
 
 (defun integer-from-n-bits (n)
   (loop repeat n with int = 0
@@ -160,7 +165,7 @@
 (defun make-ip-address (str)
   (make-instance 'ip-address :str str))
 
-(defclass ip-pair ()
+(defclass ip-pair (ip-like)
     ((first-ip :reader first-ip)
      (last-ip :reader last-ip)))
 
@@ -211,11 +216,8 @@
 (defun make-ip-range (first last)
   (make-instance 'ip-range :first-ip (make-ip-address first) :last-ip (make-ip-address last)))
 
-(defgeneric contains? (network ip)
-  (:method ((network ip-pair) (ip ip-address))
-    (<= (int (first-ip network)) (int ip) (int (last-ip network))))
-  (:method ((network ip-pair) (ip string))
-    (<= (int (first-ip network)) (int (make-ip-address ip)) (int (last-ip network)))))
+(defun in-set? (ip ip-block)
+  (contains? ip-block ip))
 
 (defgeneric ip= (ip-like-1 ip-like-2)
   (:method ((ip1 ip-address) (ip2 ip-address))
@@ -223,7 +225,10 @@
          (= (version ip1) (version ip2))))
   (:method ((p1 ip-pair) (p2 ip-pair))
     (and (ip= (first-ip p1) (first-ip p2))
-         (ip= (last-ip p1) (last-ip p2)))))
+         (ip= (last-ip p1) (last-ip p2))))
+  ;; Default case when the types of the two arguments do not match.
+  (:method ((x ip-like) (y ip-like))
+    nil))
 
 (defun make-ip-like (ip-or-network-or-range-str)
   (cond ((find #\/ ip-or-network-or-range-str) (make-ip-network ip-or-network-or-range-str))
@@ -262,13 +267,20 @@
                                                      last-str)))))))))
 
 (defun subset? (pair1 pair2)
-  (< (int (first-ip pair2))
-     (int (first-ip pair1))
-     (int (last-ip pair1))
-     (int (last-ip pair2))))
+  (<= (int (first-ip pair2))
+      (int (first-ip pair1))
+      (int (last-ip pair1))
+      (int (last-ip pair2))))
+
+(defun strict-subset? (pair1 pair2)
+  (and (not (ip= pair1 pair2))
+       (subset? pair1 pair2)))
 
 (defun superset? (pair1 pair2)
   (subset? pair2 pair1))
+
+(defun strict-superset? (pair1 pair2)
+  (strict-subset? pair2 pair1))
 
 (defun disjoint? (pair1 pair2)
   (or (< (int (last-ip pair1))
@@ -288,15 +300,54 @@
   (:method ((ip ip-address) (p ip-pair))
     (< (int ip) (int (first-ip p))))
   (:method ((p ip-pair) (ip ip-address))
-    (not (compare ip p)))
+    (not (compare ip p))) ; NB: this works because we always want ranges/subnets to be before IPs.
   (:method ((p1 ip-pair) (p2 ip-pair))
     (or (< (int (first-ip p1)) (int (first-ip p2)))
         (and (ip= (first-ip p1) (first-ip p2))
              (> (int (last-ip p1))
                 (int (last-ip p2)))))))
 
-;; DEFCLASS for IP-SET
-;;
+(defclass ip-set ()
+  ((set :initarg :ip-likes :initform '())))
+
+(defmethod print-object ((set ip-set) out)
+  (print-unreadable-object (set out :type t)
+    (format out "(~a)" (length (slot-value set 'set)))))
+
+;; Merge any adjacent uh things.
+(defun compact (set)
+  (declare (ignore set)))
+
+(defgeneric add (set ip-like)
+  (:method ((set ip-set) (ip-like ip-like))
+    (pushnew ip-like (slot-value set 'set) :test #'ip=)
+    (compact set)))
+
+(defgeneric subtract (pair ip-like))
+
+(defgeneric sub (set ip-like)
+  (:method ((set ip-set) (ip-like ip-like))
+    (ax:when-let ((x (contains? set ip-like)))
+      (with-slots (set) set
+        (if (ip= x ip-like)
+            (setf set (remove ip-like set :test #'ip=))
+            ;; A superset exists in SET, but they aren't equal.
+            )))))
+
+(defgeneric contains? (network ip)
+  (:method ((ip1 ip-address) (ip2 ip-address))
+    (ip= ip1 ip2))
+  (:method ((network ip-pair) (ip ip-address))
+    (<= (int (first-ip network)) (int ip) (int (last-ip network))))
+  (:method ((network ip-pair) (ip string))
+    (<= (int (first-ip network)) (int (make-ip-address ip)) (int (last-ip network))))
+  (:method ((set ip-set) (ip ip-address))
+    (car (member ip (slot-value set 'set) :test #'in-set?)))
+  (:method ((set ip-set) (range-or-network ip-pair))
+    (car (member range-or-network (slot-value set 'set) :test #'subset?)))
+  (:method ((set ip-set) (ip string))
+    (let ((ip (make-ip-like ip)))
+      (contains? set ip))))
 
 ;;; Character dispatch macros
 (defun |#i-reader| (stream sub-char infix)
