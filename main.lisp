@@ -323,31 +323,56 @@
   (print-unreadable-object (set out :type t)
     (format out "(~a)" (length (slot-value set 'set)))))
 
-;; Merge any adjacent uh things. SORT, make everything a range, and do it that
+;; Merge any adjacent uh things. SORT, make everything a range that isn't already, and do it that
 ;; way? Need to be careful to ensure you don't mix up v4/v6 addresses with the
-;; same integers. Although if you do that, ADD won't work. Actually no it'll
-;; work fine if you make all those methods also do the IP-LIKE -> IP-RANGE
-;; conversion. Huh, I could probably use CHANGE-CLASS here? I guess that's
-;; destructive though. Maybe just a way to instantiate ranges from IP-LIKEs? Or
-;; manually do it?
+;; same integers.
+;;
+;; Only COMPACT when:
+;; * We get above a certain size (need to estimate when this starts to be an issue.
+;; * A user wants to output the actual CIDRS or RANGES.
 (defun compact (set)
   (declare (ignore set)))
 
 (defgeneric add (set ip-like)
   (:method ((set ip-set) (ip-like ip-like))
-    (pushnew ip-like (slot-value set 'set) :test #'ip=) ; CONTAINS? here makes more sense, right? Or IN-SET?
-    (compact set)))
+    (with-slots (set) set
+      (pushnew ip-like set :test #'subset?) ; Only adds disjoint and supersets. Includes IP=.
+      ;; TODO: Only run if the above made a change. Could probably just
+      ;; implement it yourself with LOOP.
+      (setf set
+            (remove-if (lambda (x) (strict-superset? ip-like x)) set)))))
 
-(defgeneric subtract (pair ip-like))
+(defun subtract (ip-like-1 ip-like-2)
+  (let ((r1 (->ip-range ip-like-1))
+        (r2 (->ip-range ip-like-2)))
+    (cond ((disjoint? r1 r2) (list r1))
+          ((subset? r1 r2) nil)
+          ;; TODO: Refactor.
+          (t (let ((r1f (int (first-ip r1)))
+                   (r2f (int (first-ip r2)))
+                   (r1l (int (last-ip r1)))
+                   (r2l (int (last-ip r2))))
+               (cond
+                 ((= r1f r2f) (list (make-ip-range (1+ r2l) r1l)))
+                 ((= r1l r2l) (list (make-ip-range r1f (1- r2f))))
+                 (t (list (make-ip-range (int (first-ip r1))
+                                         (1- (int (first-ip r2))))
+                          (make-ip-range (1+ (int (last-ip r2)))
+                                         (int (last-ip r1)))))))))))
 
 (defgeneric sub (set ip-like)
+  ;; TODO: This probably doesn't need to be a method? Can I make a DEFUN fail
+  ;; early if the types are wrong?
+  ;; Bug: SUBing #I("0.0.0.0/0") doesn't eliminate all IPv4, which I would expect.
   (:method ((set ip-set) (ip-like ip-like))
     (ax:when-let ((x (contains? set ip-like)))
       (with-slots (set) set
         (if (ip= x ip-like)
             (setf set (remove ip-like set :test #'ip=))
             ;; A superset exists in SET, but they aren't equal.
-            )))))
+            (setf set
+                  (append (subtract x ip-like)
+                          (remove x set :test #'ip=))))))))
 
 (defgeneric contains? (network ip)
   (:method ((ip1 ip-address) (ip2 ip-address))
