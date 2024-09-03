@@ -362,6 +362,7 @@
       (contains? set ip))))
 
 (defgeneric size (network-or-range)
+  (:method ((ip ip-address)) 1)
   (:method ((pair ip-pair))
     (1+ (- (int (last-ip pair))
            (int (first-ip pair)))))
