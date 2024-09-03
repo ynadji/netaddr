@@ -169,10 +169,6 @@
     ((first-ip :reader first-ip)
      (last-ip :reader last-ip)))
 
-(defun size (network-or-range)
-  (1+ (- (int (last-ip network-or-range))
-         (int (first-ip network-or-range)))))
-
 (defclass ip-network (ip-pair)
   ((str :initarg :str :reader str)
    (mask :reader mask)))
@@ -215,6 +211,16 @@
 
 (defun make-ip-range (first last)
   (make-instance 'ip-range :first-ip (make-ip-address first) :last-ip (make-ip-address last)))
+
+(defgeneric ->ip-range (ip-like)
+  (:method ((ip-like ip-address))
+    (let ((s (str ip-like)))
+     (make-ip-range s s)))
+  (:method ((ip-like ip-pair))
+    (with-slots (first-ip last-ip) ip-like
+      (make-ip-range (str first-ip) (str last-ip))))
+  (:method ((ip-like ip-range))
+    ip-like))
 
 (defun in-set? (ip ip-block)
   (contains? ip-block ip))
@@ -308,19 +314,25 @@
                 (int (last-ip p2)))))))
 
 (defclass ip-set ()
-  ((set :initarg :ip-likes :initform '())))
+  ((set :initarg :entries :initform '())))
 
 (defmethod print-object ((set ip-set) out)
   (print-unreadable-object (set out :type t)
     (format out "(~a)" (length (slot-value set 'set)))))
 
-;; Merge any adjacent uh things.
+;; Merge any adjacent uh things. SORT, make everything a range, and do it that
+;; way? Need to be careful to ensure you don't mix up v4/v6 addresses with the
+;; same integers. Although if you do that, ADD won't work. Actually no it'll
+;; work fine if you make all those methods also do the IP-LIKE -> IP-RANGE
+;; conversion. Huh, I could probably use CHANGE-CLASS here? I guess that's
+;; destructive though. Maybe just a way to instantiate ranges from IP-LIKEs? Or
+;; manually do it?
 (defun compact (set)
   (declare (ignore set)))
 
 (defgeneric add (set ip-like)
   (:method ((set ip-set) (ip-like ip-like))
-    (pushnew ip-like (slot-value set 'set) :test #'ip=)
+    (pushnew ip-like (slot-value set 'set) :test #'ip=) ; CONTAINS? here makes more sense, right? Or IN-SET?
     (compact set)))
 
 (defgeneric subtract (pair ip-like))
@@ -348,6 +360,14 @@
   (:method ((set ip-set) (ip string))
     (let ((ip (make-ip-like ip)))
       (contains? set ip))))
+
+(defgeneric size (network-or-range)
+  (:method ((pair ip-pair))
+    (1+ (- (int (last-ip pair))
+           (int (first-ip pair)))))
+  (:method ((set ip-set))
+    (with-slots (set) set
+     (apply #'+ (mapcar #'size set)))))
 
 ;;; Character dispatch macros
 (defun |#i-reader| (stream sub-char infix)
