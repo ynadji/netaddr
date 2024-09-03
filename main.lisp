@@ -142,6 +142,12 @@
                       (setf (slot-value ip 'str) (ip-int-to-str int 6))))))
         (t (error "Must specify either STR or INT."))))
 
+(defgeneric make-ip-address (str-or-int)
+  (:method ((str string))
+    (make-instance 'ip-address :str str))
+  (:method ((int integer))
+    (make-instance 'ip-address :int int)))
+
 (defmethod print-object ((ip ip-address) out)
   (print-unreadable-object (ip out :type t)
     (format out "~a" (str ip))))
@@ -161,9 +167,6 @@
                      (logior int (integer-from-n-bits (- max-bits mask))))))
       (setf (slot-value ip 'str) (ip-int-to-str (int ip) version))
       ip)))
-
-(defun make-ip-address (str)
-  (make-instance 'ip-address :str str))
 
 (defclass ip-pair (ip-like)
     ((first-ip :reader first-ip)
