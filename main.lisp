@@ -15,22 +15,49 @@
 ;; Features:
 ;; * IP-SET data structure. See https://github.com/netaddr/netaddr/blob/master/netaddr/ip/sets.py
 ;; Required functions:
-;; * SUBTRACT
 ;; * COMPACT
-;; * DISJOINT?
-;; * SUBSET?
-;; * SUPERSET?
 ;; * UNION
 ;; * INTERSECTION
 ;; * SYMMETRIC-DIFFERENCE
 ;; * DIFFERENCE
-;; * CONTIGUOUS?
-;;
-;; IP-ADD and IP-SUBTRACT
 ;;
 ;; Add documentation with STAPLE. See the following for examples:
 ;; * https://shinmera.github.io/open-with/
 ;; * https://github.com/Shinmera/open-with/blob/main/README.mess
+
+;; I made an interesting design choice to let CONTAINS? work with all IP-LIKEs, e.g.,
+;;
+;; NETADDR> (contains? #I("1.2.3.4") #I("1.2.3.4"))
+;; T
+;; NETADDR> (contains? #I("1.2.3.4") #I("1.2.3.4/32"))
+;; T
+;; NETADDR> (contains? #I("1.2.3.4-1.2.3.4") #I("1.2.3.4/32"))
+;; T
+;; NETADDR> (ip= #I("1.2.3.4-1.2.3.4") #I("1.2.3.4/32"))
+;; T
+;;
+;; I _think_ this makes sense, because the underlying data being represented are
+;; identical. This isn't exactly the same as in Python's netaddr:
+;;
+;; >>> '1.0.0.0/8' in IPNetwork('1.0.0.0/8')
+;; True
+;; >>> IPRange('1.0.0.0', '1.255.255.255') == IPNetwork('1.0.0.0/8')
+;; True
+;; >>> IPAddress('1.2.3.4') == IPNetwork('1.2.3.4/32')
+;; False
+;; >>> IPAddress('1.2.3.4') in IPNetwork('1.2.3.4/32')
+;; True
+;;
+;; That amount of flexibility with CONTAINS? probably makes sense, and you can
+;; just make SUBSET?/etc. _use_ CONTAINS? other the hood so you get that for
+;; free. If you make DISJOINT? and CONTIGUOUS? work with IPs as well, that makes
+;; all of those nice and generic.
+;;
+;; Spend time thinking about if IP= makes sense to consider ranges/CIDRs of one
+;; IP equal to just that IP. Maybe it's worth doing IP-EQUAL and IP-EQUALP? I
+;; guess you could have all three and have IP= be the same as IP-EQUAL, since
+;; that's mostly what users would actually want. For IP-SETs, however, it's
+;; clear I want to consider those the same.
 
 ;; NB: Needed to bump this to ensure I can compute enough bits in RANGE->CIDR
 ;; for very large IPv6 integers.
@@ -206,7 +233,11 @@
 (defmethod initialize-instance :after ((range ip-range) &key)
   (when (< (int (last-ip range)) (int (first-ip range)))
     (error "FIRST-IP (~a) must be less than LAST-IP (~a)"
-           (first-ip range) (last-ip range))))
+           (first-ip range) (last-ip range)))
+  (setf (slot-value range 'version)
+        (if (< (int (last-ip range)) (expt 2 32))
+            4
+            6)))
 
 (defmethod print-object ((range ip-range) out)
   (print-unreadable-object (range out :type t)
@@ -235,6 +266,11 @@
   (:method ((p1 ip-pair) (p2 ip-pair))
     (and (ip= (first-ip p1) (first-ip p2))
          (ip= (last-ip p1) (last-ip p2))))
+  (:method ((ip ip-address) (pair ip-pair))
+    (and (= (int ip) (int (first-ip pair)) (int (last-ip pair)))
+         (= (version ip) (version pair))))
+  (:method ((pair ip-pair) (ip ip-address))
+    (ip= ip pair))
   ;; Default case when the types of the two arguments do not match.
   (:method ((x ip-like) (y ip-like))
     nil))
@@ -333,19 +369,24 @@
 (defun compact (set)
   (declare (ignore set)))
 
-(defgeneric add (set ip-like)
-  (:method ((set ip-set) (ip-like ip-like))
-    (with-slots (set) set
-      (pushnew ip-like set :test #'subset?) ; Only adds disjoint and supersets. Includes IP=.
-      ;; TODO: Only run if the above made a change. Could probably just
-      ;; implement it yourself with LOOP.
-      (setf set
-            (remove-if (lambda (x) (strict-superset? ip-like x)) set)))))
+(defun add (set ip-like)
+  (declare (ip-set set)
+           (ip-like ip-like))
+  (with-slots (set) set
+    (let ((adjoined (adjoin ip-like set :test #'in-set?)))
+      (if (eq set adjoined)
+          set
+          (remove-if (lambda (x)
+                       (and (not (ip= x ip-like))
+                            (contains? x ip-like))) adjoined)))))
+
+(defun add! (set ip-like)
+  (setf (slot-value set 'set) (add set ip-like)))
 
 (defun subtract (ip-like-1 ip-like-2)
   (let ((r1 (->ip-range ip-like-1))
         (r2 (->ip-range ip-like-2)))
-    (cond ((disjoint? r1 r2) (list r1))
+    (cond ((disjoint? r1 r2) (list ip-like-1))
           ((subset? r1 r2) nil)
           ;; TODO: Refactor.
           (t (let ((r1f (int (first-ip r1)))
@@ -360,19 +401,14 @@
                           (make-ip-range (1+ (int (last-ip r2)))
                                          (int (last-ip r1)))))))))))
 
-(defgeneric sub (set ip-like)
-  ;; TODO: This probably doesn't need to be a method? Can I make a DEFUN fail
-  ;; early if the types are wrong?
-  ;; Bug: SUBing #I("0.0.0.0/0") doesn't eliminate all IPv4, which I would expect.
-  (:method ((set ip-set) (ip-like ip-like))
-    (ax:when-let ((x (contains? set ip-like)))
-      (with-slots (set) set
-        (if (ip= x ip-like)
-            (setf set (remove ip-like set :test #'ip=))
-            ;; A superset exists in SET, but they aren't equal.
-            (setf set
-                  (append (subtract x ip-like)
-                          (remove x set :test #'ip=))))))))
+(defun sub (set ip-like)
+  (with-slots (set) set
+    (ax:flatten
+     (loop for range in set
+           collect (subtract range ip-like)))))
+
+(defun sub! (set ip-like)
+  (setf (slot-value set 'set) (sub set ip-like)))
 
 (defgeneric contains? (network ip)
   (:method ((ip1 ip-address) (ip2 ip-address))
@@ -381,10 +417,14 @@
     (<= (int (first-ip network)) (int ip) (int (last-ip network))))
   (:method ((network ip-pair) (ip string))
     (<= (int (first-ip network)) (int (make-ip-address ip)) (int (last-ip network))))
+  (:method ((pair1 ip-pair) (pair2 ip-pair))
+    (subset? pair2 pair1))
+  (:method ((ip ip-address) (pair ip-pair))
+    (= (int ip) (int (first-ip pair)) (int (last-ip pair))))
   (:method ((set ip-set) (ip ip-address))
     (car (member ip (slot-value set 'set) :test #'in-set?)))
   (:method ((set ip-set) (range-or-network ip-pair))
-    (car (member range-or-network (slot-value set 'set) :test #'subset?)))
+    (car (member range-or-network (slot-value set 'set) :test #'subset?))) ;; to CONTAINS?
   (:method ((set ip-set) (ip string))
     (let ((ip (make-ip-like ip)))
       (contains? set ip))))
