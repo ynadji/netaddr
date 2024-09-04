@@ -21,6 +21,8 @@
 ;; * SYMMETRIC-DIFFERENCE
 ;; * DIFFERENCE
 ;;
+;; Add DECLARE types for functions to give better error messages.
+;;
 ;; Add documentation with STAPLE. See the following for examples:
 ;; * https://shinmera.github.io/open-with/
 ;; * https://github.com/Shinmera/open-with/blob/main/README.mess
@@ -33,7 +35,22 @@
 ;; T
 ;; NETADDR> (contains? #I("1.2.3.4-1.2.3.4") #I("1.2.3.4/32"))
 ;; T
+;;
+;; IP=/IP-EQUAL are the same and only compare equivalent types, i.e., IP-LIKEs
+;; and IP-ADDRESSes are considered separately. But an IP-RANGE and IP-NETWORK
+;; that represent the same group of IPs can be IP-EQUAL. IP-EQUALP is more
+;; flexible, and considered IPs to be equal to their single IP IP-RANGE and
+;; IP-NETWORK counterparts.
+;;
 ;; NETADDR> (ip= #I("1.2.3.4-1.2.3.4") #I("1.2.3.4/32"))
+;; T
+;; NETADDR> (ip= #I("1.2.3.4") #I("1.2.3.4/32"))
+;; NIL
+;; NETADDR> (ip= #I("1.2.3.4") #I("1.2.3.4-1.2.3.4"))
+;; NIL
+;; NETADDR> (ip-equalp #I("1.2.3.4") #I("1.2.3.4/32"))
+;; T
+;; NETADDR> (ip-equalp #I("1.2.3.4") #I("1.2.3.4-1.2.3.4"))
 ;; T
 ;;
 ;; I _think_ this makes sense, because the underlying data being represented are
@@ -210,6 +227,7 @@
           (last-ip (make-ip-address ip)))
       (mask-ip! first-ip mask :lower)
       (mask-ip! last-ip mask :upper)
+      (setf (slot-value net 'version) (version first-ip))
       (when (= 6 (version first-ip))
         (setf (slot-value first-ip 'str)
               (compress-ipv6-str (str first-ip))))
@@ -259,21 +277,28 @@
 (defun in-set? (ip ip-block)
   (contains? ip-block ip))
 
-(defgeneric ip= (ip-like-1 ip-like-2)
+(defgeneric ip-equal (ip-like-1 ip-like-2)
   (:method ((ip1 ip-address) (ip2 ip-address))
     (and (= (int ip1) (int ip2))
          (= (version ip1) (version ip2))))
   (:method ((p1 ip-pair) (p2 ip-pair))
     (and (ip= (first-ip p1) (first-ip p2))
          (ip= (last-ip p1) (last-ip p2))))
+  ;; Default case when the types of the two arguments do not match.
+  (:method ((x ip-like) (y ip-like))
+    nil))
+
+(defun ip= (ip-like-1 ip-like-2)
+  (ip-equal ip-like-1 ip-like-2))
+
+(defgeneric ip-equalp (ip-like-1 ip-like-2)
   (:method ((ip ip-address) (pair ip-pair))
     (and (= (int ip) (int (first-ip pair)) (int (last-ip pair)))
          (= (version ip) (version pair))))
   (:method ((pair ip-pair) (ip ip-address))
-    (ip= ip pair))
-  ;; Default case when the types of the two arguments do not match.
+    (ip-equalp ip pair))
   (:method ((x ip-like) (y ip-like))
-    nil))
+    (ip-equal x y)))
 
 (defun make-ip-like (ip-or-network-or-range-str)
   (cond ((find #\/ ip-or-network-or-range-str) (make-ip-network ip-or-network-or-range-str))
@@ -359,16 +384,16 @@
   (print-unreadable-object (set out :type t)
     (format out "(~a)" (length (slot-value set 'set)))))
 
-;; Merge any adjacent uh things. SORT, make everything a range that isn't already, and do it that
-;; way? Need to be careful to ensure you don't mix up v4/v6 addresses with the
-;; same integers.
-;;
-;; Only COMPACT when:
-;; * We get above a certain size (need to estimate when this starts to be an issue.
-;; * A user wants to output the actual CIDRS or RANGES.
+;; We only need to COMPACT if we don't merge when adding _or_ the initial set
+;; isn't already compacted. Hmmm.
 (defun compact (set)
   (declare (ignore set)))
 
+;; So since we use ADJOIN when adding, we may be iterating down the entire list
+;; anyway. If that's the case, it probably makes more sense LOOP across the list
+;; manually, if ranges are adjacent merge them then and there, and if a new
+;; addition is a supserset of an existing one, just replace it. Otherwise, just
+;; CONS it on there.
 (defun add (set ip-like)
   (declare (ip-set set)
            (ip-like ip-like))
