@@ -305,7 +305,13 @@
         ((find #\- ip-or-network-or-range-str) (apply #'make-ip-range (str:split "-" ip-or-network-or-range-str)))
         (t (make-ip-address ip-or-network-or-range-str))))
 
-;; NB: Wraps. Can I use DEFINE-SETF-EXPANDER for this?
+;; NB: Wraps kinda. Can I use DEFINE-SETF-EXPANDER for this?
+;; NETADDR> (int (ip-incf #I("255.255.255.255")))
+;; 4294967296
+;; NETADDR> (int #I("255.255.255.255"))
+;; 4294967295
+;; NETADDR> (ip-incf #I("255.255.255.255"))
+;; #<IP-ADDRESS 0.0.0.0>
 (defun ip-incf (ip &optional (n 1))
   (setf (slot-value ip 'int) (+ n (int ip)))
   (setf (slot-value ip 'str) (ip-int-to-str (int ip) (slot-value ip 'version)))
@@ -380,12 +386,18 @@
 (defclass ip-set ()
   ((set :initarg :entries :initform '())))
 
+(defun make-ip-set (set)
+  (let ((s (make-instance 'ip-set)))
+    (loop for x in set do (add! s x) finally (return s))))
+
 (defmethod print-object ((set ip-set) out)
   (print-unreadable-object (set out :type t)
     (format out "(~a)" (length (slot-value set 'set)))))
 
 ;; We only need to COMPACT if we don't merge when adding _or_ the initial set
-;; isn't already compacted. Hmmm.
+;; isn't already compacted. Hmmm. For the latter, you can also just use ADD!
+;; when instantiating, rather than just setting the slot blindly. This nicely
+;; amortizes the cost of compacting.
 (defun compact (set)
   (declare (ignore set)))
 
@@ -435,13 +447,25 @@
 (defun sub! (set ip-like)
   (setf (slot-value set 'set) (sub set ip-like)))
 
+;; TODO: Check version
+;; >>> '0.0.0.0' in IPNetwork('::/96')
+;; False
+;; >>> IPAddress('0.0.0.0') in IPNetwork('::/96')
+;; False
+;; 
+;; vs.
+;; 
+;; NETADDR> (contains? #I("::/96") #I("0.0.0.0"))
+;; T
+;; NETADDR> (contains? #I("::/96") #I("255.255.255.255"))
+;; T
 (defgeneric contains? (network ip)
   (:method ((ip1 ip-address) (ip2 ip-address))
     (ip= ip1 ip2))
   (:method ((network ip-pair) (ip ip-address))
     (<= (int (first-ip network)) (int ip) (int (last-ip network))))
   (:method ((network ip-pair) (ip string))
-    (<= (int (first-ip network)) (int (make-ip-address ip)) (int (last-ip network))))
+    (contains? network (make-ip-address ip)))
   (:method ((pair1 ip-pair) (pair2 ip-pair))
     (subset? pair2 pair1))
   (:method ((ip ip-address) (pair ip-pair))
