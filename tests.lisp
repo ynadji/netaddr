@@ -173,7 +173,13 @@
   (loop for x from 127 downto 0 do
     (is (subset? #I((format nil "::/~a" (1+ x)))
                  #I((format nil "::/~a" x)))))
-  ;; Add for ranges, IPs, mixtures, etc.
+  (let ((r4 (make-ip-range "0.0.0.0" "255.255.255.255"))
+        (r6 (make-ip-range "::" "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")))
+    (loop repeat 100 do
+      (progn ;(is (subset? #I((random-ipv4-str)) r4))
+        ;(is (subset? #I((random-ipv6-str)) r6))
+        (is (subset? (random-ipv4-network) r4))
+        (is (subset? (random-ipv6-network) r6)))))
   )
 
 (test superset?
@@ -184,22 +190,36 @@
     (is (superset? #I((format nil "::/~a" x))
                    #I((format nil "::/~a" (1+ x))))))
   ;; Add for ranges, IPs, mixtures, etc.
-  )
+  (let ((r4 (make-ip-range "0.0.0.0" "255.255.255.255"))
+        (r6 (make-ip-range "::" "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")))
+    (loop repeat 100 do
+      (progn ;(is (superset? r4 #I((random-ipv4-str))))
+        ;(is (superset? r6 #I((random-ipv6-str))))
+        (is (superset? r4 (random-ipv4-network)))
+        (is (superset? r6 (random-ipv6-network)))))))
 
 (test ip=/ip-equal
   (is (ip= #I("1.2.3.4") #I("1.2.3.4")))
   (is (not (ip= #I("1.2.3.4") #I("1.2.3.4/32"))))
   (is (not (ip= #I("1.2.3.4") #I("1.2.3.4-1.2.3.4"))))
-  (loop repeat 100 do
-    (let ((net4 (random-ipv4-network))
-          (net6 (random-ipv6-network)))
-      (is (ip= net4 net4))
-      (is (ip-equal (netaddr::->ip-range net4) net4))
-      (is (ip-equal net4 (netaddr::->ip-range net4)))
+  (let ((s1 (make-instance 'netaddr::ip-set))
+        (s2 (make-instance 'netaddr::ip-set)))
+   (loop repeat 100 do
+     (let ((net4 (random-ipv4-network))
+           (net6 (random-ipv6-network)))
+       (is (ip= net4 net4))
+       (is (ip-equal (netaddr::->ip-range net4) net4))
+       (is (ip-equal net4 (netaddr::->ip-range net4)))
 
-      (is (ip= net6 net6))
-      (is (ip-equal (netaddr::->ip-range net6) net6))
-      (is (ip-equal net6 (netaddr::->ip-range net6))))))
+       (is (ip= net6 net6))
+       (is (ip-equal (netaddr::->ip-range net6) net6))
+       (is (ip-equal net6 (netaddr::->ip-range net6)))
+
+       (is (ip= s1 s2))
+       (add! s1 net4)
+       (add! s1 net6)
+       (add! s2 (netaddr::->ip-range net4))
+       (add! s2 (netaddr::->ip-range net6))))))
 
 (test ip-equalp
   (is (ip-equalp #I("1.2.3.4") #I("1.2.3.4")))
@@ -216,10 +236,26 @@
       (is (not (ip-equalp #I(str6) #I((format nil "~a/~a" str6 127))))))))
 
 (test subtract
-  )
+  (let* ((cidr4 #I("10.0.0.0/8"))
+         (s1 (netaddr::subtract cidr4 #I("10.0.0.0")))
+         (s2 (netaddr::subtract cidr4 #I("10.127.0.0")))
+         (s3 (netaddr::subtract cidr4 #I("10.0.0.0-11.0.0.0"))))
+    (is (ip= #I("10.0.0.1-10.255.255.255.255") (first s1)))
+    (is (and (ip= #I("10.0.0.0-10.126.255.255") (first s2))
+             (ip= #I("10.127.0.1-10.255.255.255.255") (second s2))))
+    (is (null s3))
+    ;; add ipv6 ones, range ones, ip-address ones.
+    ))
 
 (test sub
-  )
+  (let ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1"))))
+    (is (= 2 (length (slot-value s 'set))))
+    (is (= 1 (length (sub s #I("10.0.0.0/24")))))
+    (is (= 2 (length (slot-value s 'set))))
+    (is (= 1 (length (sub s #I("10.0.0.0/8")))))
+    (is (= 1 (length (sub s #I("1.0.0.0/8")))))
+    ;(is (= 2 (length (add s #I("10.0.0.0/8")))))
+    ))
 
 (test add
   (let ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1"))))
