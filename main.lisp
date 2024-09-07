@@ -92,12 +92,107 @@
 ;; for very large IPv6 integers.
 (setf cr:*creal-tolerance* 120)
 
+;;;; CLASSes
 (defclass ip-like () ((version :reader version)))
 
 (defclass ip-address (ip-like)
   ((str :initarg :str :reader str)
    (version :reader version)
    (int :initarg :int :reader int)))
+
+(defmethod initialize-instance :after ((ip ip-address) &key)
+  (cond ((slot-boundp ip 'str)
+         (with-slots (str) ip
+            (cond ((ipv4-str? str)
+                   (setf (slot-value ip 'version) 4)
+                   (setf (slot-value ip 'int) (ipv4-str-to-int str)))
+                  ((ipv6-str? str)
+                   (setf (slot-value ip 'str) (compress-ipv6-str str))
+                   (setf (slot-value ip 'version) 6)
+                   (setf (slot-value ip 'int) (ipv6-str-to-int str)))
+                  (t (error "~a is not an IP address string" str)))))
+        ((slot-boundp ip 'int)
+         (with-slots (int) ip
+           ;; TODO: cleaner way to do this maybe?
+           (if (< int (expt 3 32))
+               (progn (setf (slot-value ip 'version) 4)
+                      (setf (slot-value ip 'str) (ip-int-to-str int)))
+               (progn (setf (slot-value ip 'version) 6)
+                      (setf (slot-value ip 'str) (ip-int-to-str int 6))))))
+        (t (error "Must specify either STR or INT."))))
+
+(defgeneric make-ip-address (str-or-int)
+  (:method ((str string))
+    (make-instance 'ip-address :str str))
+  (:method ((int integer))
+    (make-instance 'ip-address :int int)))
+
+(defmethod print-object ((ip ip-address) out)
+  (print-unreadable-object (ip out :type t)
+    (format out "~a" (str ip))))
+
+(defclass ip-pair (ip-like)
+    ((first-ip :reader first-ip)
+     (last-ip :reader last-ip)))
+
+(defclass ip-network (ip-pair)
+  ((str :initarg :str :reader str)
+   (mask :reader mask)))
+
+(defmethod initialize-instance :after ((net ip-network) &key)
+  (destructuring-bind (ip mask) (str:split "/" (str net))
+    (let ((mask (parse-integer mask))
+          (first-ip (make-ip-address ip))
+          (last-ip (make-ip-address ip)))
+      (mask-ip! first-ip mask :lower)
+      (mask-ip! last-ip mask :upper)
+      (setf (slot-value net 'version) (version first-ip))
+      (when (= 6 (version first-ip))
+        (setf (slot-value first-ip 'str)
+              (compress-ipv6-str (str first-ip))))
+      (setf (slot-value net 'first-ip) first-ip)
+      (setf (slot-value net 'last-ip) last-ip)
+      (setf (slot-value net 'mask) mask)
+      (setf (slot-value net 'str) (format nil "~a/~a" (str first-ip) mask)))))
+
+(defmethod print-object ((net ip-network) out)
+  (print-unreadable-object (net out :type t)
+    (with-slots (str mask) net
+      (format out "~a" str))))
+
+(defun make-ip-network (str)
+  (make-instance 'ip-network :str str))
+
+(defclass ip-range (ip-pair)
+  ((first-ip :initarg :first-ip :accessor first-ip)
+   (last-ip :initarg :last-ip :accessor last-ip)))
+
+(defmethod initialize-instance :after ((range ip-range) &key)
+  (when (< (int (last-ip range)) (int (first-ip range)))
+    (error "FIRST-IP (~a) must be less than LAST-IP (~a)"
+           (first-ip range) (last-ip range)))
+  (setf (slot-value range 'version)
+        (if (< (int (last-ip range)) (expt 2 32))
+            4
+            6)))
+
+(defun make-ip-range (first last)
+  (make-instance 'ip-range :first-ip (make-ip-address first) :last-ip (make-ip-address last)))
+
+(defmethod print-object ((range ip-range) out)
+  (print-unreadable-object (range out :type t)
+    (format out "~a--~a" (str (first-ip range)) (str (last-ip range)))))
+
+(defclass ip-set ()
+  ((set :initarg :entries :initform '())))
+
+(defun make-ip-set (set)
+  (let ((s (make-instance 'ip-set)))
+    (loop for x in set do (add! s x) finally (return s))))
+
+(defmethod print-object ((set ip-set) out)
+  (print-unreadable-object (set out :type t)
+    (format out "(~a)" (length (slot-value set 'set)))))
 
 ;; TODO: Better regex?
 ;; https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
@@ -177,37 +272,6 @@
     (loop for x from 24 downto 0 by 8
           for octet in octets sum (ash octet x))))
 
-(defmethod initialize-instance :after ((ip ip-address) &key)
-  (cond ((slot-boundp ip 'str)
-         (with-slots (str) ip
-            (cond ((ipv4-str? str)
-                   (setf (slot-value ip 'version) 4)
-                   (setf (slot-value ip 'int) (ipv4-str-to-int str)))
-                  ((ipv6-str? str)
-                   (setf (slot-value ip 'str) (compress-ipv6-str str))
-                   (setf (slot-value ip 'version) 6)
-                   (setf (slot-value ip 'int) (ipv6-str-to-int str)))
-                  (t (error "~a is not an IP address string" str)))))
-        ((slot-boundp ip 'int)
-         (with-slots (int) ip
-           ;; TODO: cleaner way to do this maybe?
-           (if (< int (expt 3 32))
-               (progn (setf (slot-value ip 'version) 4)
-                      (setf (slot-value ip 'str) (ip-int-to-str int)))
-               (progn (setf (slot-value ip 'version) 6)
-                      (setf (slot-value ip 'str) (ip-int-to-str int 6))))))
-        (t (error "Must specify either STR or INT."))))
-
-(defgeneric make-ip-address (str-or-int)
-  (:method ((str string))
-    (make-instance 'ip-address :str str))
-  (:method ((int integer))
-    (make-instance 'ip-address :int int)))
-
-(defmethod print-object ((ip ip-address) out)
-  (print-unreadable-object (ip out :type t)
-    (format out "~a" (str ip))))
-
 (defun integer-from-n-bits (n)
   (loop repeat n with int = 0
         do (setf int (logior 1 (ash int 1)))
@@ -223,58 +287,6 @@
                      (logior int (integer-from-n-bits (- max-bits mask))))))
       (setf (slot-value ip 'str) (ip-int-to-str (int ip) version))
       ip)))
-
-(defclass ip-pair (ip-like)
-    ((first-ip :reader first-ip)
-     (last-ip :reader last-ip)))
-
-(defclass ip-network (ip-pair)
-  ((str :initarg :str :reader str)
-   (mask :reader mask)))
-
-(defmethod initialize-instance :after ((net ip-network) &key)
-  (destructuring-bind (ip mask) (str:split "/" (str net))
-    (let ((mask (parse-integer mask))
-          (first-ip (make-ip-address ip))
-          (last-ip (make-ip-address ip)))
-      (mask-ip! first-ip mask :lower)
-      (mask-ip! last-ip mask :upper)
-      (setf (slot-value net 'version) (version first-ip))
-      (when (= 6 (version first-ip))
-        (setf (slot-value first-ip 'str)
-              (compress-ipv6-str (str first-ip))))
-      (setf (slot-value net 'first-ip) first-ip)
-      (setf (slot-value net 'last-ip) last-ip)
-      (setf (slot-value net 'mask) mask)
-      (setf (slot-value net 'str) (format nil "~a/~a" (str first-ip) mask)))))
-
-(defmethod print-object ((net ip-network) out)
-  (print-unreadable-object (net out :type t)
-    (with-slots (str mask) net
-      (format out "~a" str))))
-
-(defun make-ip-network (str)
-  (make-instance 'ip-network :str str))
-
-(defclass ip-range (ip-pair)
-  ((first-ip :initarg :first-ip :accessor first-ip)
-   (last-ip :initarg :last-ip :accessor last-ip)))
-
-(defmethod initialize-instance :after ((range ip-range) &key)
-  (when (< (int (last-ip range)) (int (first-ip range)))
-    (error "FIRST-IP (~a) must be less than LAST-IP (~a)"
-           (first-ip range) (last-ip range)))
-  (setf (slot-value range 'version)
-        (if (< (int (last-ip range)) (expt 2 32))
-            4
-            6)))
-
-(defmethod print-object ((range ip-range) out)
-  (print-unreadable-object (range out :type t)
-    (format out "~a--~a" (str (first-ip range)) (str (last-ip range)))))
-
-(defun make-ip-range (first last)
-  (make-instance 'ip-range :first-ip (make-ip-address first) :last-ip (make-ip-address last)))
 
 (defgeneric ->ip-range (ip-like)
   (:method ((ip-like ip-address))
@@ -317,6 +329,16 @@
          (= (version ip) (version pair))))
   (:method ((pair ip-pair) (ip ip-address))
     (ip-equalp ip pair))
+  ;; TODO: Duplicating this just to change IP-EQUAL to IP-EQUALP sucks. I could
+  ;; just include a &KEY argument, but that seems clunky. Not sure what to do.
+  (:method ((s1 ip-set) (s2 ip-set))
+    (with-slots ((set1 set)) s1
+      (with-slots ((set2 set)) s2
+        (if (not (= (length set1) (length set2)))
+            nil
+            (progn (sort set1 #'compare)
+                   (sort set2 #'compare)
+                   (every #'ip-equalp set1 set2))))))
   (:method ((x ip-like) (y ip-like))
     (ip-equal x y)))
 
@@ -402,17 +424,6 @@
         (and (ip= (first-ip p1) (first-ip p2))
              (> (int (last-ip p1))
                 (int (last-ip p2)))))))
-
-(defclass ip-set ()
-  ((set :initarg :entries :initform '())))
-
-(defun make-ip-set (set)
-  (let ((s (make-instance 'ip-set)))
-    (loop for x in set do (add! s x) finally (return s))))
-
-(defmethod print-object ((set ip-set) out)
-  (print-unreadable-object (set out :type t)
-    (format out "(~a)" (length (slot-value set 'set)))))
 
 ;; We only need to COMPACT if we don't merge when adding _or_ the initial set
 ;; isn't already compacted. Hmmm. For the latter, you can also just use ADD!
@@ -515,4 +526,6 @@
         `(make-ip-like ,(car ip-likes))
         `(list ,@(mapcar (lambda (x) `(make-ip-like ,x)) ip-likes)))))
 
+;; TODO: This works fine in the SLIME REPL, but I need to hit enter twice in
+;; SBCL to make it work.
 (set-dispatch-macro-character #\# #\I #'|#i-reader|)

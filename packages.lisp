@@ -7,7 +7,9 @@
            :make-ip-range
            :make-ip-set
            :add
+           :add!
            :sub
+           :sub!
            :ip=
            :contains?
            :contiguous?
