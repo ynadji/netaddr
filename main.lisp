@@ -194,6 +194,15 @@
   (print-unreadable-object (set out :type t)
     (format out "(~a)" (length (slot-value set 'set)))))
 
+(defun shallow-copy-object (original)
+  (let* ((class (class-of original))
+         (copy (allocate-instance class)))
+    (dolist (slot (mapcar #'closer-mop:slot-definition-name (closer-mop:class-slots class)))
+      (when (slot-boundp original slot)
+        (setf (slot-value copy slot)
+              (slot-value original slot))))
+    copy))
+
 ;; TODO: Better regex?
 ;; https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
 ;; https://stackoverflow.com/questions/5284147/validating-ipv4-addresses-with-regexp
