@@ -1,5 +1,17 @@
 (in-package :netaddr)
 
+;; This library is kinda close:
+;; https://github.com/jfrancis42/ipcalc-lisp/tree/master mostly focused on
+;; converting between representations. Hah, they also just looked for #\: or #\.
+;; in the addresses d;D.
+;;
+;; Also a good similar candidate:
+;; https://github.com/jdz/ip/blob/master/src/ip.lisp Doesn't have: ranges,
+;; ip-sets, ipv6 support. Probably faster so worth considering if we're trying
+;; to speed things up.
+;;
+;; I'd say still different enough it would be worth releasing.
+
 ;; TODOs:
 ;;
 ;; Refactor to separate files.
