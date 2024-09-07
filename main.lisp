@@ -296,6 +296,14 @@
   (:method ((p1 ip-pair) (p2 ip-pair))
     (and (ip= (first-ip p1) (first-ip p2))
          (ip= (last-ip p1) (last-ip p2))))
+  (:method ((s1 ip-set) (s2 ip-set))
+    (with-slots ((set1 set)) s1
+      (with-slots ((set2 set)) s2
+        (if (not (= (length set1) (length set2)))
+            nil
+            (progn (sort set1 #'compare)
+                   (sort set2 #'compare)
+                   (every #'ip-equal set1 set2))))))
   ;; Default case when the types of the two arguments do not match.
   (:method ((x ip-like) (y ip-like))
     nil))
