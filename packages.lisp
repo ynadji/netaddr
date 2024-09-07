@@ -18,5 +18,6 @@
            :superset?
            :ip-equal
            :ip-equalp
+           :int
            :str
            :size))
