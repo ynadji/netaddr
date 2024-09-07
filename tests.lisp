@@ -248,19 +248,20 @@
     ))
 
 (test sub
-  (let ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1"))))
-    (is (= 2 (length (slot-value s 'set))))
-    (is (= 1 (length (sub s #I("10.0.0.0/24")))))
-    (is (= 2 (length (slot-value s 'set))))
-    (is (= 1 (length (sub s #I("10.0.0.0/8")))))
-    (is (= 1 (length (sub s #I("1.0.0.0/8")))))
-    ;(is (= 2 (length (add s #I("10.0.0.0/8")))))
+  (let* ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1")))
+         (orig (netaddr::shallow-copy-object s)))
+    (is (ip= s orig))
+    (is (ip= (sub s #I("10.0.0.0/24")) (make-ip-set (list #I("1.1.1.1")))))
+    (is (ip= s orig))
+    (is (ip= (sub s #I("10.0.0.0/8")) (make-ip-set (list #I("1.1.1.1")))))
+    (is (ip= (sub s #I("1.0.0.0/8")) (make-ip-set (list #I("10.0.0.0/24")))))
     ))
 
 (test add
-  (let ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1"))))
-    (is (= 2 (length (slot-value s 'set))))
-    ;(is (= 2 (length (add s #I("10.0.0.0/8")))))
+  (let* ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1")))
+         (orig (netaddr::shallow-copy-object s)))
+    (is (ip= s orig))
+    ;(is (ip= (add s #I("10.0.0.0/8")) (make-ip-set #I("10.0.0.0/8" "1.1.1.1"))))
     ))
 
 (test ip-set
