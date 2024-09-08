@@ -16,8 +16,6 @@
 ;;
 ;; Refactor to separate files.
 ;;
-;; COPY methods for each data structure
-;;
 ;; When it comes time to make things faster:
 ;; https://github.com/AccelerationNet/cl-cidr-notation/blob/master/src/cl-cidr-notation.lisp
 ;;
@@ -27,7 +25,6 @@
 ;; Features:
 ;; * IP-SET data structure. See https://github.com/netaddr/netaddr/blob/master/netaddr/ip/sets.py
 ;; Required functions:
-;; * COMPACT
 ;; * UNION
 ;; * INTERSECTION
 ;; * SYMMETRIC-DIFFERENCE
@@ -188,7 +185,7 @@
 
 (defun make-ip-set (set)
   (let ((s (make-instance 'ip-set)))
-    (loop for x in set do (add! s x) finally (return s))))
+    (apply #'add! s set)))
 
 (defmethod print-object ((set ip-set) out)
   (print-unreadable-object (set out :type t)
