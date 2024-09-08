@@ -146,7 +146,11 @@
   (is (contiguous? #I("0.0.0.0-0.255.255.255") #I("1.0.0.0/8")))
   (is (contiguous? #I("1.0.0.0/8") #I("0.0.0.0-0.255.255.255")))
   (is (contiguous? #I("1.2.3.4/32") #I("1.2.3.5/32")))
-  ;(is (contiguous? #I("1.2.3.4") #I("1.2.3.5")))
+  (is (contiguous? #I("1.2.3.4") #I("1.2.3.5")))
+  (is (contiguous? #I("10.0.0.0/24") #I("9.255.255.255")))
+  (is (contiguous? #I("10.0.1.0") #I("10.0.0.0/24")))
+  (is (not (contiguous? #I("10.0.0.0/24") #I("10.0.0.41"))))
+  (is (not (contiguous? #I("255.255.255.255") #I("0.0.0.0"))))
   )
 
 ;; Lots of duplicates from above since CONTIGUOUS? networks are by definition
@@ -163,7 +167,7 @@
   (is (disjoint? #I("0.0.0.0-0.255.255.255") #I("1.0.0.0/8")))
   (is (disjoint? #I("1.0.0.0/8") #I("0.0.0.0-0.255.255.255")))
   (is (disjoint? #I("1.2.3.4/32") #I("1.2.3.5/32")))
-  ;(is (disjoint? #I("1.2.3.4") #I("1.2.3.5")))
+  (is (disjoint? #I("1.2.3.4") #I("1.2.3.5")))
   )
 
 (test subset?
@@ -176,8 +180,9 @@
   (let ((r4 (make-ip-range "0.0.0.0" "255.255.255.255"))
         (r6 (make-ip-range "::" "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")))
     (loop repeat 100 do
-      (progn ;(is (subset? #I((random-ipv4-str)) r4))
-        ;(is (subset? #I((random-ipv6-str)) r6))
+      (progn
+        (is (subset? #I((random-ipv4-str)) r4))
+        (is (subset? #I((random-ipv6-str)) r6))
         (is (subset? (random-ipv4-network) r4))
         (is (subset? (random-ipv6-network) r6)))))
   )
@@ -193,8 +198,9 @@
   (let ((r4 (make-ip-range "0.0.0.0" "255.255.255.255"))
         (r6 (make-ip-range "::" "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")))
     (loop repeat 100 do
-      (progn ;(is (superset? r4 #I((random-ipv4-str))))
-        ;(is (superset? r6 #I((random-ipv6-str))))
+      (progn
+        (is (superset? r4 #I((random-ipv4-str))))
+        (is (superset? r6 #I((random-ipv6-str))))
         (is (superset? r4 (random-ipv4-network)))
         (is (superset? r6 (random-ipv6-network)))))))
 
@@ -261,7 +267,7 @@
   (let* ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1")))
          (orig (netaddr::shallow-copy-object s)))
     (is (ip= s orig))
-    ;(is (ip= (add s #I("10.0.0.0/8")) (make-ip-set #I("10.0.0.0/8" "1.1.1.1"))))
+    (is (ip= (add s #I("10.0.0.0/8")) (make-ip-set #I("10.0.0.0/8" "1.1.1.1"))))
     ))
 
 (test ip-set
