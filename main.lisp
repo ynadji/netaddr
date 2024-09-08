@@ -446,21 +446,25 @@
 ;; manually, if ranges are adjacent merge them then and there, and if a new
 ;; addition is a supserset of an existing one, just replace it. Otherwise, just
 ;; CONS it on there.
-(defun add! (set ip-like)
-  (declare (ip-set set)
-           (ip-like ip-like))
-  (with-slots (set) set
-    (setf set
-          (let ((adjoined (adjoin ip-like set :test #'in-set?)))
-            (if (eq set adjoined)
-                set
-                (remove-if (lambda (x)
-                             (and (not (ip= x ip-like))
-                                  (contains? x ip-like))) adjoined))))))
+(defun add! (set &rest ip-likes)
+  (declare (ip-set set))
+  (if (null ip-likes)
+      set
+      (progn
+       (with-slots (set) set
+         (setf set
+               (let* ((ip-like (first ip-likes))
+                      (adjoined (adjoin ip-like set :test #'in-set?)))
+                 (if (eq set adjoined)
+                     set
+                     (remove-if (lambda (x)
+                                  (and (not (ip= x ip-like))
+                                       (contains? x ip-like))) adjoined)))))
+       (apply #'add! set (rest ip-likes)))))
 
-(defun add (set ip-like)
+(defun add (set &rest ip-likes)
   (let ((new-set (shallow-copy-object set)))
-    (add! new-set ip-like)
+    (apply #'add! new-set ip-likes)
     new-set))
 
 (defun subtract (ip-like-1 ip-like-2)
@@ -481,16 +485,22 @@
                           (make-ip-range (1+ (int (last-ip r2)))
                                          (int (last-ip r1)))))))))))
 
-(defun sub! (set ip-like)
-  (with-slots (set) set
-    (setf set
-          (ax:flatten
-           (loop for range in set
-                 collect (subtract range ip-like))))))
+(defun sub! (set &rest ip-likes)
+  (declare (ip-set set))
+  (if (null ip-likes)
+      set
+      (progn
+        (with-slots (set) set
+          (setf set
+                (ax:flatten
+                 (loop for range in set
+                       collect
+                       (subtract range (first ip-likes))))))
+        (apply #'sub! set (rest ip-likes)))))
 
-(defun sub (set ip-like)
+(defun sub (set &rest ip-likes)
   (let ((new-set (shallow-copy-object set)))
-    (sub! new-set ip-like)
+    (apply #'sub! new-set ip-likes)
     new-set))
 
 ;; TODO: Check version
