@@ -268,7 +268,11 @@
          (orig (netaddr::shallow-copy-object s)))
     (is (ip= s orig))
     (is (ip= (add s #I("10.0.0.0/8")) (make-ip-set #I("10.0.0.0/8" "1.1.1.1"))))
+    (is (ip= (add s #I("10.0.0.0/24")) orig))
+    (is (ip= (add s #I("10.0.0.0/27")) orig))
+    (is (ip= (add s #I("10.0.0.128")) orig))
     ))
 
+;; TODO: Write tests but don't assume ADD coalesces.
 (test ip-set
   )

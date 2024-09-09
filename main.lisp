@@ -450,26 +450,56 @@
 (defun compact (set)
   (declare (ignore set)))
 
-;; So since we use ADJOIN when adding, we may be iterating down the entire list
-;; anyway. If that's the case, it probably makes more sense LOOP across the list
-;; manually, if ranges are adjacent merge them then and there, and if a new
-;; addition is a supserset of an existing one, just replace it. Otherwise, just
-;; CONS it on there.
+;; Obviously this is really slow. Maybe it doesn't matter if there are
+;; duplicates since SUB will definitely get rid of both if it needs to. I think
+;; the original idea here was the keep the sets small, but if added is O(n^2)
+;; and searching is O(n), it probably makes much more sense to have adding be
+;; O(1) (or O(n)) and have searching be O(n).
+;;
+;; Blah well fix this at least, commit, then do something simpler for ADD and
+;; get some rough timing info. You can probably just use SUBSET? or SUPERSET?
+;; with REMOVE-DUPLICATES for COMPACT. Yeah this seems to work?
+;;
+;; NETADDR> (slot-value sp 'set)
+;; (#<IP-NETWORK 10.0.0.0/24> #<IP-ADDRESS 1.1.1.1> #<IP-NETWORK 10.0.0.0/8>)
+;; NETADDR> (remove-duplicates (slot-value sp 'set) :test #'subset?)
+;; (#<IP-ADDRESS 1.1.1.1> #<IP-NETWORK 10.0.0.0/8>)
+;;
+;; order matters though
+;; NETADDR> (remove-duplicates #I("10.0.0.0/8" "1.1.1.1" "10.0.0.0/24") :test #'subset?)
+;; (#<IP-NETWORK 10.0.0.0/8> #<IP-ADDRESS 1.1.1.1> #<IP-NETWORK 10.0.0.0/24>)
+;;
+;; seems a SORT/REVERSE gets things in the right oder for it.
+;; NETADDR> (remove-duplicates (reverse (sort #I("10.0.0.0/8" "1.1.1.1" "10.0.0.0/24") #'compare)) :test #'subset?)
+;; (#<IP-NETWORK 10.0.0.0/8> #<IP-ADDRESS 1.1.1.1>)
 (defun add! (set &rest ip-likes)
   (declare (ip-set set))
   (if (null ip-likes)
-      set
       (progn
-       (with-slots (set) set
-         (setf set
+        (with-slots (set) set
+          (setf set (remove-duplicates (ax:flatten set) :test #'ip=)))
+        set)
+      (progn
+        (with-slots (set) set
+          (setf
+           set
+           (if (null set)
+               (list (first ip-likes))
                (let* ((ip-like (first ip-likes))
-                      (adjoined (adjoin ip-like set :test #'in-set?)))
-                 (if (eq set adjoined)
-                     set
-                     (remove-if (lambda (x)
-                                  (and (not (ip= x ip-like))
-                                       (contains? x ip-like))) adjoined)))))
-       (apply #'add! set (rest ip-likes)))))
+                      (added? nil)
+                      (new-set (loop for existing in set
+                                     collect
+                                     (cond ((superset? ip-like existing)
+                                            (setf added? t)
+                                            ip-like)
+                                           ((subset? ip-like existing)
+                                            (setf added? t)
+                                            existing)
+                                           (t existing)))))
+                 (unless added?
+                   (push ip-like new-set))
+                 new-set))))
+        (apply #'add! set (rest ip-likes)))))
 
 (defun add (set &rest ip-likes)
   (let ((new-set (shallow-copy-object set)))
