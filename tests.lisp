@@ -275,4 +275,18 @@
 
 ;; TODO: Write tests but don't assume ADD coalesces.
 (test ip-set
-  )
+  (let* ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1")))
+         (orig (netaddr::shallow-copy-object s)))
+    (is (ip= s orig))
+    (is (contains? s #I("10.0.0.0/25")))
+    (is (contains? s #I("1.1.1.1")))
+    (is (not (contains? s #I("192.168.0.0"))))
+    (add! s #I("192.168.0.0/16"))
+    (is (contains? s #I("192.168.0.0")))
+    (is (contains? s #I("192.168.0.0-192.168.255.255")))
+    (sub! s #I("192.168.0.0/24"))
+    (is (not (contains? s #I("192.168.0.0"))))
+    (is (not (contains? s #I("192.168.0.0-192.168.255.255"))))
+    (is (contains? s #I("192.168.1.0")))
+    (is (contains? s #I("192.168.1.0-192.168.255.255")))
+    ))
