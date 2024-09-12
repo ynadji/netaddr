@@ -8,6 +8,8 @@
            :make-ip-set
            :add
            :add!
+           :addnew
+           :addnew!
            :sub
            :sub!
            :ip=

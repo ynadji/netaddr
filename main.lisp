@@ -16,8 +16,14 @@
 ;;
 ;; Refactor to separate files.
 ;;
-;; When it comes time to make things faster:
-;; https://github.com/AccelerationNet/cl-cidr-notation/blob/master/src/cl-cidr-notation.lisp
+;; When it comes time to make things faster (prob) in order of importance:
+;; * better IP-SET data structure
+;; * http://metamodular.com/CLOS-MOP/standard-instance-access.html for slot access speedup
+;; * https://github.com/marcoheisig/sealable-metaobjects for generic function speedup
+;; * https://github.com/AccelerationNet/cl-cidr-notation/blob/master/src/cl-cidr-notation.lisp for parsing
+;;
+;; My hunch is after the first one, the others won't really be necessary and
+;; will just decrease code readability.
 ;;
 ;; IPv6 stuff:
 ;; * Handle all kinds of string formats: https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
@@ -184,8 +190,8 @@
   ((set :initarg :entries :initform '())))
 
 (defun make-ip-set (set)
-  (let ((s (make-instance 'ip-set)))
-    (apply #'add! s set)))
+  (let ((s (make-instance 'ip-set :entries set)))
+    (compact! s)))
 
 (defmethod print-object ((set ip-set) out)
   (print-unreadable-object (set out :type t)
@@ -227,7 +233,6 @@
          (num-non-empties (count "" parts :test-not #'equal))
          (zeroes (loop repeat (- 8 num-non-empties) collect "0")))
     (mapcar (lambda (x) (parse-integer x :radix 16))
-            ;; TODO: use -<>
             (remove "" (ax:flatten (substitute zeroes "" parts :test #'equal :count 1)) :test #'equal))))
 
 (defun remove-leading-zeroes (str)
@@ -443,67 +448,56 @@
              (> (int (last-ip p1))
                 (int (last-ip p2)))))))
 
-;; We only need to COMPACT if we don't merge when adding _or_ the initial set
-;; isn't already compacted. Hmmm. For the latter, you can also just use ADD!
-;; when instantiating, rather than just setting the slot blindly. This nicely
-;; amortizes the cost of compacting.
-(defun compact (set)
-  (declare (ignore set)))
+(defun compact! (set)
+  (with-slots (set) set
+    (setf set (delete-duplicates (sort set #'compare)
+                                 :test #'subset? :from-end t)))
+  set)
 
-;; Obviously this is really slow. Maybe it doesn't matter if there are
-;; duplicates since SUB will definitely get rid of both if it needs to. I think
-;; the original idea here was the keep the sets small, but if added is O(n^2)
-;; and searching is O(n), it probably makes much more sense to have adding be
-;; O(1) (or O(n)) and have searching be O(n).
-;;
-;; Blah well fix this at least, commit, then do something simpler for ADD and
-;; get some rough timing info. You can probably just use SUBSET? or SUPERSET?
-;; with REMOVE-DUPLICATES for COMPACT. Yeah this seems to work?
-;;
-;; NETADDR> (slot-value sp 'set)
-;; (#<IP-NETWORK 10.0.0.0/24> #<IP-ADDRESS 1.1.1.1> #<IP-NETWORK 10.0.0.0/8>)
-;; NETADDR> (remove-duplicates (slot-value sp 'set) :test #'subset?)
-;; (#<IP-ADDRESS 1.1.1.1> #<IP-NETWORK 10.0.0.0/8>)
-;;
-;; order matters though
-;; NETADDR> (remove-duplicates #I("10.0.0.0/8" "1.1.1.1" "10.0.0.0/24") :test #'subset?)
-;; (#<IP-NETWORK 10.0.0.0/8> #<IP-ADDRESS 1.1.1.1> #<IP-NETWORK 10.0.0.0/24>)
-;;
-;; seems a SORT/REVERSE gets things in the right oder for it.
-;; NETADDR> (remove-duplicates (reverse (sort #I("10.0.0.0/8" "1.1.1.1" "10.0.0.0/24") #'compare)) :test #'subset?)
-;; (#<IP-NETWORK 10.0.0.0/8> #<IP-ADDRESS 1.1.1.1>)
+(defun %add-slow! (set ip-like)
+  (declare (ip-set set)
+           (ip-like ip-like))
+  (with-slots (set) set
+    (if (loop with changed? = nil
+              for sub on set
+              for (x) = sub
+              do (cond ((subset? x ip-like)
+                        (setf (car sub) ip-like
+                         changed? t))
+                       ((superset? x ip-like)
+                        (setf changed? t)))
+              finally
+                 (return changed?))
+        set
+        (push ip-like set))))
+
+(defun add-slow! (set &rest ip-likes)
+  (loop for ip-like in ip-likes do (%add-slow! set ip-like)))
+
+(defun add-slow (set &rest ip-likes)
+  (let ((new-set (shallow-copy-object set)))
+    (apply #'add-slow! new-set ip-likes)
+    new-set))
+
 (defun add! (set &rest ip-likes)
-  (declare (ip-set set))
-  (if (null ip-likes)
-      (progn
-        (with-slots (set) set
-          (setf set (remove-duplicates (ax:flatten set) :test #'ip=)))
-        set)
-      (progn
-        (with-slots (set) set
-          (setf
-           set
-           (if (null set)
-               (list (first ip-likes))
-               (let* ((ip-like (first ip-likes))
-                      (added? nil)
-                      (new-set (loop for existing in set
-                                     collect
-                                     (cond ((superset? ip-like existing)
-                                            (setf added? t)
-                                            ip-like)
-                                           ((subset? ip-like existing)
-                                            (setf added? t)
-                                            existing)
-                                           (t existing)))))
-                 (unless added?
-                   (push ip-like new-set))
-                 new-set))))
-        (apply #'add! set (rest ip-likes)))))
+  (with-slots (set) set
+    (setf set (nconc ip-likes set)))
+  set)
 
 (defun add (set &rest ip-likes)
   (let ((new-set (shallow-copy-object set)))
     (apply #'add! new-set ip-likes)
+    new-set))
+
+(defun addnew! (set &rest ip-likes)
+  (with-slots (set) set
+    (loop for ip-like in ip-likes
+          do (pushnew ip-like set :test #'subset?)))
+  set)
+
+(defun addnew (set &rest ip-likes)
+  (let ((new-set (shallow-copy-object set)))
+    (apply #'addnew! new-set ip-likes)
     new-set))
 
 (defun subtract (ip-like-1 ip-like-2)
