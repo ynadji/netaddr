@@ -358,18 +358,6 @@
         ((find #\- ip-or-network-or-range-str) (apply #'make-ip-range (str:split "-" ip-or-network-or-range-str)))
         (t (make-ip-address ip-or-network-or-range-str))))
 
-;; NB: Wraps kinda. Can I use DEFINE-SETF-EXPANDER for this?
-;; NETADDR> (int (ip-incf #I("255.255.255.255")))
-;; 4294967296
-;; NETADDR> (int #I("255.255.255.255"))
-;; 4294967295
-;; NETADDR> (ip-incf #I("255.255.255.255"))
-;; #<IP-ADDRESS 0.0.0.0>
-(defun ip-incf (ip &optional (n 1))
-  (setf (slot-value ip 'int) (+ n (int ip)))
-  (setf (slot-value ip 'str) (ip-int-to-str (int ip) (slot-value ip 'version)))
-  ip)
-
 ;; Might not be super efficient from allocations and recursiveness. Particularly
 ;; for poorly CIDR-aligned IPv6 ranges. Lots of CONSing.
 (defun range->cidrs (ip-range)
@@ -454,7 +442,7 @@
                                  :test #'subset? :from-end t)))
   set)
 
-(defun %add-slow! (set ip-like)
+(defun %addnew! (set ip-like)
   (declare (ip-set set)
            (ip-like ip-like))
   (with-slots (set) set
@@ -471,12 +459,12 @@
         set
         (push ip-like set))))
 
-(defun add-slow! (set &rest ip-likes)
-  (loop for ip-like in ip-likes do (%add-slow! set ip-like)))
+(defun addnew! (set &rest ip-likes)
+  (loop for ip-like in ip-likes do (%addnew! set ip-like)))
 
-(defun add-slow (set &rest ip-likes)
+(defun addnew (set &rest ip-likes)
   (let ((new-set (shallow-copy-object set)))
-    (apply #'add-slow! new-set ip-likes)
+    (apply #'addnew! new-set ip-likes)
     new-set))
 
 (defun add! (set &rest ip-likes)
@@ -487,17 +475,6 @@
 (defun add (set &rest ip-likes)
   (let ((new-set (shallow-copy-object set)))
     (apply #'add! new-set ip-likes)
-    new-set))
-
-(defun addnew! (set &rest ip-likes)
-  (with-slots (set) set
-    (loop for ip-like in ip-likes
-          do (pushnew ip-like set :test #'subset?)))
-  set)
-
-(defun addnew (set &rest ip-likes)
-  (let ((new-set (shallow-copy-object set)))
-    (apply #'addnew! new-set ip-likes)
     new-set))
 
 (defun subtract (ip-like-1 ip-like-2)

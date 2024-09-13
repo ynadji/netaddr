@@ -123,17 +123,6 @@
       (is (= (netaddr::int (netaddr::first-ip net6)) (netaddr::int (netaddr::first-ip net6r))))
       (is (= (netaddr::int (netaddr::last-ip net6)) (netaddr::int (netaddr::last-ip net6r)))))))
 
-(test ip-incf
-  (let ((*test-dribble* nil))
-    (loop repeat 10 for one = (random 256) do
-      (loop repeat 10 for two = (random 256) do
-        (loop repeat 10 for three = (random 256) do
-          (loop repeat 10 for four = (random 256) do
-            (let* ((ip (make-ip-address (format nil "~a.~a.~a.~a" one two three four)))
-                   (ip-int (netaddr::int ip)))
-              (is (ip= (netaddr::ip-incf ip) (make-ip-address (1+ ip-int))))
-              (is (ip= (netaddr::ip-incf ip -1) (make-ip-address ip-int))))))))))
-
 (test contiguous?
   (is (contiguous? #I("10.0.0.0/24") #I("10.0.1.0/24")))
   (is (contiguous? #I("0.0.0.0/1") #I("128.0.0.0/1")))
