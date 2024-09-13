@@ -252,16 +252,6 @@
     (is (ip= (sub s #I("1.0.0.0/8")) (make-ip-set (list #I("10.0.0.0/24")))))
     ))
 
-(test add-slow
-  (let* ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1")))
-         (orig (netaddr::shallow-copy-object s)))
-    (is (ip= s orig))
-    (is (ip= (netaddr::add-slow s #I("10.0.0.0/8")) (make-ip-set #I("10.0.0.0/8" "1.1.1.1"))))
-    (is (ip= (netaddr::add-slow s #I("10.0.0.0/24")) orig))
-    (is (ip= (netaddr::add-slow s #I("10.0.0.0/27")) orig))
-    (is (ip= (netaddr::add-slow s #I("10.0.0.128")) orig))
-    ))
-
 (test addnew
   (let* ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1")))
          (orig (netaddr::shallow-copy-object s)))
@@ -270,6 +260,7 @@
     (is (ip= (addnew s #I("10.0.0.0/24")) orig))
     (is (ip= (addnew s #I("10.0.0.0/27")) orig))
     (is (ip= (addnew s #I("10.0.0.128")) orig))
+    (is (ip= (addnew s #I("10.0.0.0/8")) (make-ip-set #I("10.0.0.0/8" "1.1.1.1"))))
     ))
 
 ;; TODO: Write tests but don't assume ADD coalesces.
@@ -288,4 +279,8 @@
     (is (not (contains? s #I("192.168.0.0-192.168.255.255"))))
     (is (contains? s #I("192.168.1.0")))
     (is (contains? s #I("192.168.1.0-192.168.255.255")))
-    ))
+    (is (ip= (make-ip-set #I("10.0.0.0/8" "10.0.0.0/7" "10.0.0.0/6" "10.0.0.0/5" "10.0.0.0/4" "10.0.0.0/3"))
+             (make-ip-set (list #I("0.0.0.0/3")))))
+    (is (ip= (make-ip-set (list #I("0.0.0.0/3")))
+             (make-ip-set #I("10.0.0.0/8" "10.0.0.0/7" "10.0.0.0/6" "10.0.0.0/5" "10.0.0.0/4" "10.0.0.0/3"))
+             ))))
