@@ -109,7 +109,7 @@
         ((slot-boundp ip 'int)
          (with-slots (int) ip
            ;; TODO: cleaner way to do this maybe?
-           (if (< int (expt 3 32))
+           (if (< int (expt 2 32))
                (progn (setf (slot-value ip 'version) 4)
                       (setf (slot-value ip 'str) (ip-int-to-str int)))
                (progn (setf (slot-value ip 'version) 6)

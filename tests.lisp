@@ -47,6 +47,12 @@
                                                     (ash second 16)
                                                     (ash third 8)
                                                     fourth))))))))))
+
+(test ipv4-v6-boundary
+  (is (ip= (make-ip-address (1- (expt 2 32))) #I("255.255.255.255")))
+  (is (ip= (make-ip-address (expt 2 32)) #I("0:0:0:0:0:1:0:0")))
+  (is (ip= (make-ip-address (1+ (expt 2 32))) #I("0:0:0:0:0:1:0:1"))))
+
 (test contains?
   (let ((net4 (make-ip-network "10.20.30.40/24"))
         (range4 (make-ip-range "192.168.0.0" "192.168.125.255"))
