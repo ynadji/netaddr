@@ -31,8 +31,6 @@
 ;; Features:
 ;; * IP-SET data structure. See https://github.com/netaddr/netaddr/blob/master/netaddr/ip/sets.py
 ;; Required functions:
-;; * UNION
-;; * INTERSECTION
 ;; * SYMMETRIC-DIFFERENCE
 ;; * DIFFERENCE
 ;;
@@ -436,6 +434,22 @@
              (> (int (last-ip p1))
                 (int (last-ip p2)))))))
 
+(defgeneric intersect (ip-like-1 ip-like-2)
+  (:method ((ip1 ip-address) (ip2 ip-address))
+    (when (ip= ip1 ip2)
+      ip1))
+  (:method ((ip ip-address) (p ip-pair))
+    (when (contains? p ip)
+      ip))
+  (:method ((p ip-pair) (ip ip-address))
+    (intersect ip p))
+  (:method ((p1 ip-pair) (p2 ip-pair))
+    (cond ((contains? p1 p2) p2)
+          ((contains? p2 p1) p1)
+          (t nil))))
+
+;; DOIPS macro. Huh, for this you'd need an IP-INCF which you deleted :\.
+
 (defun compact! (set)
   (with-slots (set) set
     (setf set (delete-duplicates (sort set #'compare)
@@ -555,6 +569,24 @@
   (:method ((set ip-set))
     (with-slots (set) set
      (apply #'+ (mapcar #'size set)))))
+
+(defun ip-set-union (ip-set-1 ip-set-2)
+  (with-slots ((set1 set)) ip-set-1
+    (with-slots ((set2 set)) ip-set-2
+        (make-ip-set (append set1 set2)))))
+
+(defun ip-set-intersection (ip-set-1 ip-set-2)
+  (let ((diff (shallow-copy-object ip-set-1)))
+    (setf (slot-value diff 'set)
+          (remove nil (loop for x in (slot-value ip-set-1 'set)
+                            append (loop for y in (slot-value ip-set-2 'set)
+                                         collect (intersect x y)))))
+    diff))
+
+(defun ip-set-difference (ip-set-1 ip-set-2))
+
+(defun ip-set-symmetric-difference (ip-set-1 ip-set-2)
+  (ip-set-difference (ip-set-union ip-set-1 ip-set-2) (ip-set-intersection ip-set-1 ip-set-2)))
 
 ;;; Character dispatch macros
 (defun |#i-reader| (stream sub-char infix)
