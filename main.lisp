@@ -28,12 +28,6 @@
 ;; IPv6 stuff:
 ;; * Handle all kinds of string formats: https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
 ;;
-;; Features:
-;; * IP-SET data structure. See https://github.com/netaddr/netaddr/blob/master/netaddr/ip/sets.py
-;; Required functions:
-;; * SYMMETRIC-DIFFERENCE
-;; * DIFFERENCE
-;;
 ;; Add DECLARE types for functions to give better error messages.
 ;;
 ;; Add documentation with STAPLE. See the following for examples:
@@ -576,17 +570,26 @@
         (make-ip-set (append set1 set2)))))
 
 (defun ip-set-intersection (ip-set-1 ip-set-2)
-  (let ((diff (shallow-copy-object ip-set-1)))
-    (setf (slot-value diff 'set)
+  (let ((inter (shallow-copy-object ip-set-1)))
+    (setf (slot-value inter 'set)
           (remove nil (loop for x in (slot-value ip-set-1 'set)
                             append (loop for y in (slot-value ip-set-2 'set)
                                          collect (intersect x y)))))
-    diff))
+    inter))
 
-(defun ip-set-difference (ip-set-1 ip-set-2))
+(defun ip-set-difference (ip-set-1 ip-set-2)
+  (with-slots ((set1 set)) ip-set-1
+    (with-slots ((set2 set)) ip-set-2
+      (make-ip-set
+       (loop for x in set1
+             append (loop for y in set2
+                          with new-xs = (list x)
+                          do (setf new-xs (mapcan (lambda (new-x) (subtract new-x y)) new-xs))
+                          finally (return new-xs)))))))
 
 (defun ip-set-symmetric-difference (ip-set-1 ip-set-2)
-  (ip-set-difference (ip-set-union ip-set-1 ip-set-2) (ip-set-intersection ip-set-1 ip-set-2)))
+  (ip-set-difference (ip-set-union ip-set-1 ip-set-2)
+                     (ip-set-intersection ip-set-1 ip-set-2)))
 
 ;;; Character dispatch macros
 (defun |#i-reader| (stream sub-char infix)
