@@ -23,4 +23,8 @@
            :int
            :str
            :size
+           :ip-set-union
+           :ip-set-intersection
+           :ip-set-difference
+           :ip-set-symmetric-difference
            :enable-ip-syntax))

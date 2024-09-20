@@ -176,7 +176,7 @@
 
 (defmethod print-object ((range ip-range) out)
   (print-unreadable-object (range out :type t)
-    (format out "~a--~a" (str (first-ip range)) (str (last-ip range)))))
+    (format out "~a-~a" (str (first-ip range)) (str (last-ip range)))))
 
 (defclass ip-set ()
   ((set :initarg :entries :initform '())))
@@ -567,7 +567,8 @@
 (defun ip-set-union (ip-set-1 ip-set-2)
   (with-slots ((set1 set)) ip-set-1
     (with-slots ((set2 set)) ip-set-2
-        (make-ip-set (append set1 set2)))))
+      ;; APPEND does not copy the last argument, CONCATENATE does.
+      (make-ip-set (concatenate 'list set1 set2)))))
 
 (defun ip-set-intersection (ip-set-1 ip-set-2)
   (let ((inter (shallow-copy-object ip-set-1)))
