@@ -22,4 +22,5 @@
            :ip-equalp
            :int
            :str
-           :size))
+           :size
+           :enable-ip-syntax))

@@ -590,15 +590,3 @@
 (defun ip-set-symmetric-difference (ip-set-1 ip-set-2)
   (ip-set-difference (ip-set-union ip-set-1 ip-set-2)
                      (ip-set-intersection ip-set-1 ip-set-2)))
-
-;;; Character dispatch macros
-(defun |#i-reader| (stream sub-char infix)
-  (declare (ignore sub-char infix))
-  (let ((ip-likes (read stream)))
-    (if (= 1 (length ip-likes))
-        `(make-ip-like ,(car ip-likes))
-        `(list ,@(mapcar (lambda (x) `(make-ip-like ,x)) ip-likes)))))
-
-;; TODO: This works fine in the SLIME REPL, but I need to hit enter twice in
-;; SBCL to make it work.
-(set-dispatch-macro-character #\# #\I #'|#i-reader|)

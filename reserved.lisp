@@ -1,5 +1,6 @@
 (in-package :netaddr)
 
+(enable-ip-syntax)
 ;; TODO: These should probably be IP-SETs when the time comes.
 
 ;; IPv4 special subnets

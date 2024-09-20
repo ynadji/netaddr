@@ -6,6 +6,7 @@
   :depends-on ("str" "uiop" "arrow-macros" "alexandria" "cl-ppcre" "computable-reals" "closer-mop")
   :components ((:file "packages")
                (:file "main")
+               (:file "syntax")
                (:file "reserved"))
   :in-order-to ((test-op (test-op :netaddr/tests))))
 

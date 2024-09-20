@@ -14,6 +14,8 @@
 (def-suite tests)
 (in-suite tests)
 
+(enable-ip-syntax)
+
 ;; TODO: add a shitload of tests!
 
 (defun random-ipv4-str ()
