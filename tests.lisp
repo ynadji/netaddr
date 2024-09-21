@@ -254,9 +254,9 @@
          (s1 (netaddr::subtract cidr4 #I("10.0.0.0")))
          (s2 (netaddr::subtract cidr4 #I("10.127.0.0")))
          (s3 (netaddr::subtract cidr4 #I("10.0.0.0-11.0.0.0"))))
-    (is (ip= #I("10.0.0.1-10.255.255.255.255") (first s1)))
+    (is (ip= #I("10.0.0.1-10.255.255.255") (first s1)))
     (is (and (ip= #I("10.0.0.0-10.126.255.255") (first s2))
-             (ip= #I("10.127.0.1-10.255.255.255.255") (second s2))))
+             (ip= #I("10.127.0.1-10.255.255.255") (second s2))))
     (is (null s3))
     ;; add ipv6 ones, range ones, ip-address ones.
     ))
