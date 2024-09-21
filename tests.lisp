@@ -30,6 +30,22 @@
 (defun random-ipv6-network ()
   #I((format nil "~a/~a" (random-ipv6-str) (random 129))))
 
+(test error-checking
+  (is (null (ignore-errors (make-ip-address "not-and-ip-address"))))
+  (is (null (ignore-errors (make-instance 'ip-address))))
+  (is (null (ignore-errors (make-ip-address nil))))
+  (is (null (ignore-errors (make-ip-address '(1 2 3)))))
+  (is (null (ignore-errors (make-ip-range "1.1.1.1" "0.0.0.0"))))
+  (is (null (ignore-errors (make-ip-range "::ffff" "::"))))
+  (is (null (ignore-errors (make-ip-network "wutang/16"))))
+  (is (null (ignore-errors (make-ip-network "1.2.3.4/wutang"))))
+  (is (null (ignore-errors (make-ip-network "0.0.0.0/33"))))
+  (is (null (ignore-errors (make-ip-network "0.0.0.0/-1"))))
+  (is (null (ignore-errors (make-ip-network "::/-1"))))
+  (is (null (ignore-errors (make-ip-network "::/129"))))
+  (is (null (ignore-errors (make-ip-set "::/129"))))
+  (is (null (ignore-errors (make-ip-set '("foo" "bar"))))))
+
 (test subnet-corrects-str
   (is (string= "10.20.30.0/24" (str (make-ip-network "10.20.30.40/24"))))
   (is (string= "0.0.0.0/0" (str (make-ip-network "255.255.255.255/0")))))
@@ -259,6 +275,12 @@
     (is (ip= (sub s #I("10.0.0.0/8")) (make-ip-set (list #I("1.1.1.1")))))
     (is (ip= (sub s #I("1.0.0.0/8")) (make-ip-set (list #I("10.0.0.0/24")))))
     ))
+
+(test add
+  (let* ((s (make-ip-set #I("0.0.0.0/24" "1.1.1.1"))))
+    (loop for x upto 255 do
+      (is (= 3 (length (slot-value (add s (make-ip-address x)) 'set))))
+      (is (ip= s (make-ip-set #I("0.0.0.0/24" "1.1.1.1")))))))
 
 (test addnew
   (let* ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1")))

@@ -120,7 +120,10 @@
   (:method ((str string))
     (make-instance 'ip-address :str str))
   (:method ((int integer))
-    (make-instance 'ip-address :int int)))
+    (make-instance 'ip-address :int int))
+  (:method ((foo t))
+    (declare (ignore foo))
+    (error "Must specify either STR or INT.")))
 
 (defmethod print-object ((ip ip-address) out)
   (print-unreadable-object (ip out :type t)
@@ -134,6 +137,9 @@
   ((str :initarg :str :reader str)
    (mask :reader mask)))
 
+(defun make-ip-network (str)
+  (make-instance 'ip-network :str str))
+
 (defmethod initialize-instance :after ((net ip-network) &key)
   (destructuring-bind (ip mask) (str:split "/" (str net))
     (let ((mask (parse-integer mask))
@@ -142,6 +148,10 @@
       (mask-ip! first-ip mask :lower)
       (mask-ip! last-ip mask :upper)
       (setf (slot-value net 'version) (version first-ip))
+      (if (= 4 (version first-ip))
+          (unless (<= 0 mask 32) (error "IPv4 masks must be in [0, 32]")))
+      (if (= 6 (version first-ip))
+          (unless (<= 0 mask 128) (error "IPv6 masks must be in [0, 128]")))
       (when (= 6 (version first-ip))
         (setf (slot-value first-ip 'str)
               (compress-ipv6-str (str first-ip))))
@@ -154,9 +164,6 @@
   (print-unreadable-object (net out :type t)
     (with-slots (str mask) net
       (format out "~a" str))))
-
-(defun make-ip-network (str)
-  (make-instance 'ip-network :str str))
 
 (defclass ip-range (ip-pair)
   ((first-ip :initarg :first-ip :accessor first-ip)
@@ -182,6 +189,10 @@
   ((set :initarg :entries :initform '())))
 
 (defun make-ip-set (set)
+  (unless (listp set)
+    (error "SET must be a list of IP-ADDRESSes, IP-NETWORKs, or IP-RANGEs: ~a" set))
+  (when (not (every (lambda (x) (typep x 'ip-like)) set))
+    (error "All arguments in SET must be one of IP-ADDRESS, IP-NETWORK, or IP-RANGE: ~a" set))
   (let ((s (make-instance 'ip-set :entries set)))
     (compact! s)))
 
