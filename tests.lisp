@@ -16,8 +16,6 @@
 
 (enable-ip-syntax)
 
-;; TODO: add a shitload of tests!
-
 (defun random-ipv4-str ()
   (format nil "~{~a~^.~}" (loop repeat 4 collect (random 256))))
 
@@ -163,8 +161,7 @@
   (is (contiguous? #I("10.0.0.0/24") #I("9.255.255.255")))
   (is (contiguous? #I("10.0.1.0") #I("10.0.0.0/24")))
   (is (not (contiguous? #I("10.0.0.0/24") #I("10.0.0.41"))))
-  (is (not (contiguous? #I("255.255.255.255") #I("0.0.0.0"))))
-  )
+  (is (not (contiguous? #I("255.255.255.255") #I("0.0.0.0")))))
 
 ;; Lots of duplicates from above since CONTIGUOUS? networks are by definition
 ;; DISJOINT?.
@@ -180,8 +177,7 @@
   (is (disjoint? #I("0.0.0.0-0.255.255.255") #I("1.0.0.0/8")))
   (is (disjoint? #I("1.0.0.0/8") #I("0.0.0.0-0.255.255.255")))
   (is (disjoint? #I("1.2.3.4/32") #I("1.2.3.5/32")))
-  (is (disjoint? #I("1.2.3.4") #I("1.2.3.5")))
-  )
+  (is (disjoint? #I("1.2.3.4") #I("1.2.3.5"))))
 
 (test subset?
   (loop for x from 31 downto 0 do
@@ -197,8 +193,7 @@
         (is (subset? #I((random-ipv4-str)) r4))
         (is (subset? #I((random-ipv6-str)) r6))
         (is (subset? (random-ipv4-network) r4))
-        (is (subset? (random-ipv6-network) r6)))))
-  )
+        (is (subset? (random-ipv6-network) r6))))))
 
 (test superset?
   (loop for x from 31 downto 0 do
@@ -273,8 +268,7 @@
     (is (ip= (sub s #I("10.0.0.0/24")) (make-ip-set (list #I("1.1.1.1")))))
     (is (ip= s orig))
     (is (ip= (sub s #I("10.0.0.0/8")) (make-ip-set (list #I("1.1.1.1")))))
-    (is (ip= (sub s #I("1.0.0.0/8")) (make-ip-set (list #I("10.0.0.0/24")))))
-    ))
+    (is (ip= (sub s #I("1.0.0.0/8")) (make-ip-set (list #I("10.0.0.0/24")))))))
 
 (test add
   (let* ((s (make-ip-set #I("0.0.0.0/24" "1.1.1.1"))))
@@ -290,10 +284,8 @@
     (is (ip= (addnew s #I("10.0.0.0/24")) orig))
     (is (ip= (addnew s #I("10.0.0.0/27")) orig))
     (is (ip= (addnew s #I("10.0.0.128")) orig))
-    (is (ip= (addnew s #I("10.0.0.0/8")) (make-ip-set #I("10.0.0.0/8" "1.1.1.1"))))
-    ))
+    (is (ip= (addnew s #I("10.0.0.0/8")) (make-ip-set #I("10.0.0.0/8" "1.1.1.1"))))))
 
-;; TODO: Write tests but don't assume ADD coalesces.
 (test ip-set
   (let* ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1")))
          (orig (netaddr::shallow-copy-object s)))
@@ -312,8 +304,7 @@
     (is (ip= (make-ip-set #I("10.0.0.0/8" "10.0.0.0/7" "10.0.0.0/6" "10.0.0.0/5" "10.0.0.0/4" "10.0.0.0/3"))
              (make-ip-set (list #I("0.0.0.0/3")))))
     (is (ip= (make-ip-set (list #I("0.0.0.0/3")))
-             (make-ip-set #I("10.0.0.0/8" "10.0.0.0/7" "10.0.0.0/6" "10.0.0.0/5" "10.0.0.0/4" "10.0.0.0/3"))
-             ))))
+             (make-ip-set #I("10.0.0.0/8" "10.0.0.0/7" "10.0.0.0/6" "10.0.0.0/5" "10.0.0.0/4" "10.0.0.0/3"))))))
 
 (test ip-set-union
   (is (ip= (ip-set-union (make-ip-set #I("10.0.0.0/24" "192.168.0.0/24" "ffff::/128"))
