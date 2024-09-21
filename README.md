@@ -6,7 +6,7 @@ and sets. It is inspired by its namesake library in Python,
 
 * IPv4 and IPv6 addresses, subnets, and ranges.
 * Shorthand syntax for the above, e.g., `#I("192.168.1.0/24)`, `#I(::-ffff::)`,
-  and `#I("0.0.0.0", "1.1.1.1")` do what you would expect. This can be enabled
+  and `#I("0.0.0.0" "1.1.1.1")` do what you would expect. This can be enabled
   by calling `(NETADDR:ENABLE-IP-SYNTAX)` before usage.
 * Helper lookup functions for reserved space, e.g., `PRIVATE?`, `RESERVED?`, and
   `PUBLIC?`.
