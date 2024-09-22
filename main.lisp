@@ -549,30 +549,21 @@
     (apply #'sub! new-set ip-likes)
     new-set))
 
-;; TODO: Check version
-;; >>> '0.0.0.0' in IPNetwork('::/96')
-;; False
-;; >>> IPAddress('0.0.0.0') in IPNetwork('::/96')
-;; False
-;; 
-;; vs.
-;; 
-;; NETADDR> (contains? #I("::/96") #I("0.0.0.0"))
-;; T
-;; NETADDR> (contains? #I("::/96") #I("255.255.255.255"))
-;; T
 (defgeneric contains? (ip-like-1 ip-like-2)
   (:method ((ip1 ip-address) (ip2 ip-address))
     (ip= ip1 ip2))
-  (:method ((network ip-pair) (ip ip-address))
-    (<= (int (first-ip network)) (int ip) (int (last-ip network))))
+  (:method ((pair ip-pair) (ip ip-address))
+    (and (= (version pair) (version ip))
+         (<= (int (first-ip pair)) (int ip) (int (last-ip pair)))))
   (:method ((pair1 ip-pair) (pair2 ip-pair))
-    (<= (int (first-ip pair1))
-        (int (first-ip pair2))
-        (int (last-ip pair2))
-        (int (last-ip pair1))))
+    (and (= (version pair1) (version pair2))
+         (<= (int (first-ip pair1))
+             (int (first-ip pair2))
+             (int (last-ip pair2))
+             (int (last-ip pair1)))))
   (:method ((ip ip-address) (pair ip-pair))
-    (= (int ip) (int (first-ip pair)) (int (last-ip pair))))
+    (and (= (version ip) (version pair))
+         (= (int ip) (int (first-ip pair)) (int (last-ip pair)))))
   (:method ((set ip-set) (ip ip-address))
     (car (member ip (slot-value set 'set) :test #'in-set?)))
   (:method ((set ip-set) (range-or-network ip-pair))

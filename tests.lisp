@@ -100,7 +100,10 @@
     (is (contains? range6 #I("::1")))
     (is (contains? range6 #I("::2")))
     (is (contains? range6 #I("babe::")))
-    (is (not (contains? range6 #I("babe::1"))))))
+    (is (not (contains? range6 #I("babe::1"))))
+
+    (is (not (contains? #I("::/96") #I("0.0.0.0"))))
+    (is (not (contains? #I("::/96") #I("255.255.255.255"))))))
 
 (test compress-ipv6-str
   (is (string= "0:0:1::" (netaddr::compress-ipv6-str "0:0:1:0:0:0:0:0")))
