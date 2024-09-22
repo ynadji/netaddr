@@ -3,7 +3,7 @@
   :description "IP and CIDR manipulation library"
   :author "Yacin Nadji <ynadji@gmail.com>"
   :license "MIT"
-  :depends-on ("str" "uiop" "arrow-macros" "alexandria" "cl-ppcre" "computable-reals" "closer-mop")
+  :depends-on ("str" "uiop" "alexandria" "cl-ppcre" "computable-reals" "closer-mop")
   :components ((:file "packages")
                (:file "main")
                (:file "syntax")

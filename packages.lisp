@@ -1,6 +1,6 @@
 (in-package :cl-user)
 (defpackage :netaddr
-  (:use :cl :arrow-macros)
+  (:use :cl)
   (:local-nicknames (:ax :alexandria))
   (:export :make-ip-address
            :make-ip-network

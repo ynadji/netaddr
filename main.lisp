@@ -149,9 +149,9 @@
       (mask-ip! last-ip mask :upper)
       (setf (slot-value net 'version) (version first-ip))
       (when (= 4 (version first-ip))
-        (unless (<= 0 mask 32) (error "IPv4 masks must be in [0, 32]")))
+        (check-type mask (integer 0 32) "in [0, 32] for IPv4 masks"))
       (when (= 6 (version first-ip))
-        (unless (<= 0 mask 128) (error "IPv6 masks must be in [0, 128]")))
+        (check-type mask (integer 0 128) "in [0, 128] for IPv6 masks"))
       (when (= 6 (version first-ip))
         (setf (slot-value first-ip 'str)
               (compress-ipv6-str (str first-ip))))
@@ -189,10 +189,9 @@
   ((set :initarg :entries :initform '())))
 
 (defun make-ip-set (set)
-  (unless (listp set)
-    (error "SET must be a list of IP-ADDRESSes, IP-NETWORKs, or IP-RANGEs: ~a" set))
-  (when (not (every (lambda (x) (typep x 'ip-like)) set))
-    (error "All arguments in SET must be one of IP-ADDRESS, IP-NETWORK, or IP-RANGE: ~a" set))
+  (check-type set list)
+  (dolist (set-element set)
+    (check-type set-element ip-like))
   (let ((s (make-instance 'ip-set :entries set)))
     (compact! s)))
 
@@ -209,22 +208,21 @@
               (slot-value original slot))))
     copy))
 
-;; TODO: Better regex?
-;; https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
+;; Grabbed from
 ;; https://stackoverflow.com/questions/5284147/validating-ipv4-addresses-with-regexp
+;; and
+;; https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
 (defun ipv4-str? (str) (cl-ppcre:scan "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\.?\\b){4}$" str))
 (defun ipv6-str? (str) (cl-ppcre:scan "(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))" str))
 
 (defun ip-int-to-str-v4 (int)
-  (->> (loop for offset from 24 downto 0 by 8 collect (ldb (byte 8 offset) int))
-    (mapcar #'write-to-string)
-    (str:join ".")))
+  (let ((bytes (loop for offset from 24 downto 0 by 8 collect (ldb (byte 8 offset) int))))
+    (str:join "." (mapcar #'write-to-string bytes))))
 
 (defun ip-int-to-str-v6 (int)
-  (let ((*print-base* 16))
-    (->> (loop for offset from 112 downto 0 by 16 collect (ldb (byte 16 offset) int))
-      (mapcar #'write-to-string)
-      (str:join ":"))))
+  (let ((*print-base* 16)
+        (bytes (loop for offset from 112 downto 0 by 16 collect (ldb (byte 16 offset) int))))
+    (str:join ":" (mapcar #'write-to-string bytes))))
 
 (defun ip-int-to-str (int &optional (type 4))
   (ecase type
@@ -261,11 +259,13 @@
          (colon-list (list ":"))
          (parts (str:split ":" str)))
     (multiple-value-bind (len pos) (largest-run "0" parts)
-      (let* ((parts (if (< len 2)
+      (let* ((end (+ len pos))
+             (parts (if (< len 2)
                         parts
-                        (-<> parts
-                          (replace <> colon-list :start1 pos :end1 (+ len pos))
-                          (delete "0" <> :test #'string= :start pos :end (+ len pos)))))
+                        (delete "0"
+                                (replace parts colon-list :start1 pos :end1 end)
+                                :test #'string=
+                                :start pos :end end)))
             (new-parts-len (length parts)))
         (cond ((< len 2) str) ; No run of 0s
               ((= new-parts-len 1) "::") ; All run of 0s
@@ -282,7 +282,7 @@
   (ipv6-parts-to-int (expand-ipv6-addr-to-parts str)))
 
 (defun ipv4-str-to-int (str)
-  (let ((octets (->> str (str:split ".") (mapcar #'parse-integer))))
+  (let ((octets (mapcar #'parse-integer (str:split "." str))))
     (loop for x from 24 downto 0 by 8
           for octet in octets sum (ash octet x))))
 
@@ -462,15 +462,15 @@
   set)
 
 (defun %addnew! (set ip-like)
-  (declare (ip-set set)
-           (ip-like ip-like))
+  (check-type set ip-set)
+  (check-type ip-like ip-like)
   (with-slots (set) set
     (if (loop with changed? = nil
               for sub on set
               for (x) = sub
               do (cond ((subset? x ip-like)
                         (setf (car sub) ip-like
-                         changed? t))
+                              changed? t))
                        ((superset? x ip-like)
                         (setf changed? t)))
               finally
@@ -479,7 +479,8 @@
         (push ip-like set))))
 
 (defun addnew! (set &rest ip-likes)
-  (loop for ip-like in ip-likes do (%addnew! set ip-like)))
+  (loop for ip-like in ip-likes do (%addnew! set ip-like))
+  set)
 
 (defun addnew (set &rest ip-likes)
   (let ((new-set (shallow-copy-object set)))
@@ -488,7 +489,7 @@
 
 (defun add! (set &rest ip-likes)
   (with-slots (set) set
-    (setf set (nconc ip-likes set)))
+    (setf set (append ip-likes set)))
   set)
 
 (defun add (set &rest ip-likes)
@@ -515,7 +516,7 @@
                                          (int (last-ip r1)))))))))))
 
 (defun sub! (set &rest ip-likes)
-  (declare (ip-set set))
+  (check-type set ip-set)
   (if (null ip-likes)
       set
       (progn
