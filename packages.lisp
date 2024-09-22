@@ -27,4 +27,7 @@
            :ip-set-intersection
            :ip-set-difference
            :ip-set-symmetric-difference
-           :enable-ip-syntax))
+           :enable-ip-syntax
+           :public?
+           :private?
+           :reserved?))
