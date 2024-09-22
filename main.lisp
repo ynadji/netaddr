@@ -185,7 +185,7 @@
   (print-unreadable-object (range out :type t)
     (format out "~a-~a" (str (first-ip range)) (str (last-ip range)))))
 
-(defclass ip-set ()
+(defclass ip-set (ip-like)
   ((set :initarg :entries :initform '())))
 
 (defun make-ip-set (set)
@@ -310,8 +310,11 @@
     (with-slots (first-ip last-ip) ip-like
       (make-ip-range (str first-ip) (str last-ip))))
   (:method ((ip-like ip-range))
-    ip-like))
+    ip-like)
+  (:method ((ip-like t))
+    (check-type ip-like ip-like)))
 
+;; TODO: Remove when RESERVED stuff is switched to IP-SETs.
 (defun in-set? (ip ip-block)
   (contains? ip-block ip))
 
@@ -332,7 +335,10 @@
                    (every #'ip-equal set1 set2))))))
   ;; Default case when the types of the two arguments do not match.
   (:method ((x ip-like) (y ip-like))
-    nil))
+    nil)
+  (:method ((ip-like-1 t) (ip-like-2 t))
+    (check-type ip-like-1 ip-like)
+    (check-type ip-like-2 ip-like)))
 
 (defun ip= (ip-like-1 ip-like-2)
   (ip-equal ip-like-1 ip-like-2))
@@ -354,9 +360,13 @@
                    (sort set2 #'compare)
                    (every #'ip-equalp set1 set2))))))
   (:method ((x ip-like) (y ip-like))
-    (ip-equal x y)))
+    (ip-equal x y))
+  (:method ((ip-like-1 t) (ip-like-2 t))
+    (check-type ip-like-1 ip-like)
+    (check-type ip-like-2 ip-like)))
 
 (defun make-ip-like (ip-or-network-or-range-str)
+  (check-type ip-or-network-or-range-str string)
   (cond ((find #\/ ip-or-network-or-range-str) (make-ip-network ip-or-network-or-range-str))
         ((find #\- ip-or-network-or-range-str) (apply #'make-ip-range (str:split "-" ip-or-network-or-range-str)))
         (t (make-ip-address ip-or-network-or-range-str))))
@@ -386,20 +396,20 @@
                                                                          :int (1+ (int (last-ip net)))))
                                                      last-str)))))))))
 
-(defun subset? (pair1 pair2)
-  (contains? pair2 pair1))
+(defun subset? (ip-like-1 ip-like-2)
+  (contains? ip-like-2 ip-like-1))
 
-(defun strict-subset? (pair1 pair2)
-  (and (not (ip= pair1 pair2))
-       (subset? pair1 pair2)))
+(defun strict-subset? (ip-like-1 ip-like-2)
+  (and (not (ip= ip-like-1 ip-like-2))
+       (subset? ip-like-1 ip-like-2)))
 
-(defun superset? (pair1 pair2)
-  (subset? pair2 pair1))
+(defun superset? (ip-like-1 ip-like-2)
+  (subset? ip-like-2 ip-like-1))
 
-(defun strict-superset? (pair1 pair2)
-  (strict-subset? pair2 pair1))
+(defun strict-superset? (ip-like-1 ip-like-2)
+  (strict-subset? ip-like-2 ip-like-1))
 
-(defgeneric disjoint? (pair1 pair2)
+(defgeneric disjoint? (ip-like-1 ip-like-2)
   (:method ((i1 ip-address) (i2 ip-address))
     (not (ip= i1 i2)))
   (:method ((p ip-pair) (i ip-address))
@@ -410,9 +420,12 @@
     (or (< (int (last-ip p1))
            (int (first-ip p2)))
         (< (int (last-ip p2))
-           (int (first-ip p1))))))
+           (int (first-ip p1)))))
+  (:method ((ip-like-1 t) (ip-like-2 t))
+    (check-type ip-like-1 ip-like)
+    (check-type ip-like-2 ip-like)))
 
-(defgeneric contiguous? (pair1 pair2)
+(defgeneric contiguous? (ip-like-1 ip-like-2)
   (:method ((i1 ip-address) (i2 ip-address))
     (= 1 (abs (- (int i1) (int i2)))))
   (:method ((p ip-pair) (i ip-address))
@@ -424,7 +437,10 @@
     (or (= 1 (abs (- (int (last-ip p1))
                      (int (first-ip p2)))))
         (= 1 (abs (- (int (last-ip p2))
-                     (int (first-ip p1))))))))
+                     (int (first-ip p1)))))))
+  (:method ((ip-like-1 t) (ip-like-2 t))
+    (check-type ip-like-1 ip-like)
+    (check-type ip-like-2 ip-like)))
 
 (defgeneric compare (ip-like-1 ip-like-2)
   (:method ((ip1 ip-address) (ip2 ip-address))
@@ -545,13 +561,11 @@
 ;; T
 ;; NETADDR> (contains? #I("::/96") #I("255.255.255.255"))
 ;; T
-(defgeneric contains? (network ip)
+(defgeneric contains? (ip-like-1 ip-like-2)
   (:method ((ip1 ip-address) (ip2 ip-address))
     (ip= ip1 ip2))
   (:method ((network ip-pair) (ip ip-address))
     (<= (int (first-ip network)) (int ip) (int (last-ip network))))
-  (:method ((network ip-pair) (ip string))
-    (contains? network (make-ip-address ip)))
   (:method ((pair1 ip-pair) (pair2 ip-pair))
     (<= (int (first-ip pair1))
         (int (first-ip pair2))
@@ -563,11 +577,11 @@
     (car (member ip (slot-value set 'set) :test #'in-set?)))
   (:method ((set ip-set) (range-or-network ip-pair))
     (car (member range-or-network (slot-value set 'set) :test #'in-set?)))
-  (:method ((set ip-set) (ip string))
-    (let ((ip (make-ip-like ip)))
-      (contains? set ip))))
+  (:method ((ip-like-1 t) (ip-like-2 t))
+    (check-type ip-like-1 ip-like)
+    (check-type ip-like-2 ip-like)))
 
-(defgeneric size (network-or-range)
+(defgeneric size (ip-like)
   (:method ((ip ip-address)) 1)
   (:method ((pair ip-pair))
     (1+ (- (int (last-ip pair))
@@ -577,12 +591,16 @@
      (apply #'+ (mapcar #'size set)))))
 
 (defun ip-set-union (ip-set-1 ip-set-2)
+  (check-type ip-set-1 ip-set)
+  (check-type ip-set-2 ip-set)
   (with-slots ((set1 set)) ip-set-1
     (with-slots ((set2 set)) ip-set-2
       ;; APPEND does not copy the last argument, CONCATENATE does.
       (make-ip-set (concatenate 'list set1 set2)))))
 
 (defun ip-set-intersection (ip-set-1 ip-set-2)
+  (check-type ip-set-1 ip-set)
+  (check-type ip-set-2 ip-set)
   (let ((inter (shallow-copy-object ip-set-1)))
     (setf (slot-value inter 'set)
           (remove nil (loop for x in (slot-value ip-set-1 'set)
@@ -591,6 +609,8 @@
     inter))
 
 (defun ip-set-difference (ip-set-1 ip-set-2)
+  (check-type ip-set-1 ip-set)
+  (check-type ip-set-2 ip-set)
   (with-slots ((set1 set)) ip-set-1
     (with-slots ((set2 set)) ip-set-2
       (make-ip-set
