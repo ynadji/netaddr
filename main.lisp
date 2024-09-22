@@ -579,7 +579,6 @@
            (int (first-ip pair)))))
   (:method ((set ip-set))
     (with-slots (set) set
-     (apply #'+ (mapcar #'size set)))))
 
 (defun ip-set-union (ip-set-1 ip-set-2)
   (check-type ip-set-1 ip-set)
@@ -614,3 +613,4 @@
 (defun ip-set-symmetric-difference (ip-set-1 ip-set-2)
   (ip-set-difference (ip-set-union ip-set-1 ip-set-2)
                      (ip-set-intersection ip-set-1 ip-set-2)))
+     (reduce #'+ (mapcar #'size set)))))
