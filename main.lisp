@@ -314,10 +314,6 @@
   (:method ((ip-like t))
     (check-type ip-like ip-like)))
 
-;; TODO: Remove when RESERVED stuff is switched to IP-SETs.
-(defun in-set? (ip ip-block)
-  (contains? ip-block ip))
-
 (defgeneric ip-equal (ip-like-1 ip-like-2)
   (:method ((ip1 ip-address) (ip2 ip-address))
     (and (= (int ip1) (int ip2))
@@ -549,6 +545,10 @@
     (apply #'sub! new-set ip-likes)
     new-set))
 
+;; To make CONTAINS? play nice with MEMBER.
+(defun in-set? (ip ip-block)
+  (contains? ip-block ip))
+
 (defgeneric contains? (ip-like-1 ip-like-2)
   (:method ((ip1 ip-address) (ip2 ip-address))
     (ip= ip1 ip2))
@@ -566,8 +566,8 @@
          (= (int ip) (int (first-ip pair)) (int (last-ip pair)))))
   (:method ((set ip-set) (ip ip-address))
     (car (member ip (slot-value set 'set) :test #'in-set?)))
-  (:method ((set ip-set) (range-or-network ip-pair))
-    (car (member range-or-network (slot-value set 'set) :test #'in-set?)))
+  (:method ((set ip-set) (pair ip-pair))
+    (car (member pair (slot-value set 'set) :test #'in-set?)))
   (:method ((ip-like-1 t) (ip-like-2 t))
     (check-type ip-like-1 ip-like)
     (check-type ip-like-2 ip-like)))
