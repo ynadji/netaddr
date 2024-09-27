@@ -148,6 +148,14 @@
       (is (= (netaddr::int (netaddr::first-ip net6)) (netaddr::int (netaddr::first-ip net6r))))
       (is (= (netaddr::int (netaddr::last-ip net6)) (netaddr::int (netaddr::last-ip net6r)))))))
 
+(test compare
+  (is (netaddr::compare #I("0.0.0.0") #I("255.255.255.255")))
+  (is (not (netaddr::compare #I("255.255.255.255") #I("0.0.0.0"))))
+  (is (netaddr::compare #I("1.0.0.0") #I("::")))
+  (is (netaddr::compare #I("255.255.255.255") #I("::")))
+  (is (not (netaddr::compare #I("::") #I("1.0.0.0"))))
+  (is (not (netaddr::compare #I("::") #I("255.255.255.255")))))
+
 (test contiguous?
   (is (contiguous? #I("10.0.0.0/24") #I("10.0.1.0/24")))
   (is (contiguous? #I("0.0.0.0/1") #I("128.0.0.0/1")))

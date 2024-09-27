@@ -14,6 +14,12 @@
 
 ;; TODOs:
 ;;
+;; Probably a good idea to set the class hierarchy such that:
+;; * all IP classes (IP-LIKE)
+;; * IP-PAIRs and IP-SETs
+;; * everything except IP-SETs.
+;;
+;;
 ;; Refactor to separate files.
 ;;
 ;; When it comes time to make things faster (prob) in order of importance:
@@ -438,7 +444,7 @@
     (check-type ip-like-1 ip-like)
     (check-type ip-like-2 ip-like)))
 
-(defgeneric compare (ip-like-1 ip-like-2)
+(defgeneric %compare (ip-like-1 ip-like-2)
   (:method ((ip1 ip-address) (ip2 ip-address))
     (< (int ip1) (int ip2)))
   (:method ((ip ip-address) (p ip-pair))
@@ -450,6 +456,14 @@
         (and (ip= (first-ip p1) (first-ip p2))
              (> (int (last-ip p1))
                 (int (last-ip p2)))))))
+
+(defun compare (ip-like-1 ip-like-2)
+  ;; Explicitly make v4 always less than v6 so when we sort we are consistent
+  ;; when two IPs have the same value but different versions, e.g., #I("::") vs.
+  ;; #I("0.0.0.0").
+  (if (= (version ip-like-1) (version ip-like-2))
+      (%compare ip-like-1 ip-like-2)
+      (< (version ip-like-1) (version ip-like-2))))
 
 (defgeneric intersect (ip-like-1 ip-like-2)
   (:method ((ip1 ip-address) (ip2 ip-address))
@@ -510,22 +524,24 @@
     new-set))
 
 (defun subtract (ip-like-1 ip-like-2)
-  (let ((r1 (->ip-range ip-like-1))
-        (r2 (->ip-range ip-like-2)))
-    (cond ((disjoint? r1 r2) (list ip-like-1))
-          ((subset? r1 r2) nil)
-          ;; TODO: Refactor.
-          (t (let ((r1f (int (first-ip r1)))
-                   (r2f (int (first-ip r2)))
-                   (r1l (int (last-ip r1)))
-                   (r2l (int (last-ip r2))))
-               (cond
-                 ((= r1f r2f) (list (make-ip-range (1+ r2l) r1l)))
-                 ((= r1l r2l) (list (make-ip-range r1f (1- r2f))))
-                 (t (list (make-ip-range (int (first-ip r1))
-                                         (1- (int (first-ip r2))))
-                          (make-ip-range (1+ (int (last-ip r2)))
-                                         (int (last-ip r1)))))))))))
+  (if (= (version ip-like-1) (version ip-like-2))
+      (let ((r1 (->ip-range ip-like-1))
+            (r2 (->ip-range ip-like-2)))
+        (cond ((disjoint? r1 r2) (list ip-like-1))
+              ((subset? r1 r2) nil)
+              ;; TODO: Refactor.
+              (t (let ((r1f (int (first-ip r1)))
+                       (r2f (int (first-ip r2)))
+                       (r1l (int (last-ip r1)))
+                       (r2l (int (last-ip r2))))
+                   (cond
+                     ((= r1f r2f) (list (make-ip-range (1+ r2l) r1l)))
+                     ((= r1l r2l) (list (make-ip-range r1f (1- r2f))))
+                     (t (list (make-ip-range (int (first-ip r1))
+                                             (1- (int (first-ip r2))))
+                              (make-ip-range (1+ (int (last-ip r2)))
+                                             (int (last-ip r1))))))))))
+      (list ip-like-1)))
 
 (defun sub! (set &rest ip-likes)
   (check-type set ip-set)
