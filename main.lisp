@@ -579,38 +579,53 @@
            (int (first-ip pair)))))
   (:method ((set ip-set))
     (with-slots (set) set
-
-(defun ip-set-union (ip-set-1 ip-set-2)
-  (check-type ip-set-1 ip-set)
-  (check-type ip-set-2 ip-set)
-  (with-slots ((set1 set)) ip-set-1
-    (with-slots ((set2 set)) ip-set-2
-      ;; APPEND does not copy the last argument, CONCATENATE does.
-      (make-ip-set (concatenate 'list set1 set2)))))
-
-(defun ip-set-intersection (ip-set-1 ip-set-2)
-  (check-type ip-set-1 ip-set)
-  (check-type ip-set-2 ip-set)
-  (let ((inter (shallow-copy-object ip-set-1)))
-    (setf (slot-value inter 'set)
-          (remove nil (loop for x in (slot-value ip-set-1 'set)
-                            append (loop for y in (slot-value ip-set-2 'set)
-                                         collect (intersect x y)))))
-    inter))
-
-(defun ip-set-difference (ip-set-1 ip-set-2)
-  (check-type ip-set-1 ip-set)
-  (check-type ip-set-2 ip-set)
-  (with-slots ((set1 set)) ip-set-1
-    (with-slots ((set2 set)) ip-set-2
-      (make-ip-set
-       (loop for x in set1
-             append (loop for y in set2
-                          with new-xs = (list x)
-                          do (setf new-xs (mapcan (lambda (new-x) (subtract new-x y)) new-xs))
-                          finally (return new-xs)))))))
-
-(defun ip-set-symmetric-difference (ip-set-1 ip-set-2)
-  (ip-set-difference (ip-set-union ip-set-1 ip-set-2)
-                     (ip-set-intersection ip-set-1 ip-set-2)))
      (reduce #'+ (mapcar #'size set)))))
+
+(defun ip-set-union (&rest ip-sets)
+  (let ((res (make-ip-set nil)))
+    (loop for ip-set in ip-sets do
+          (with-slots ((set1 set)) res
+            (with-slots ((set2 set)) ip-set
+              ;; APPEND does not copy the last argument, CONCATENATE does.
+              (progn (check-type ip-set ip-set)
+                     (setf set1 (concatenate 'list set1 set2))))))
+    (compact! res)))
+
+(defun ip-set-intersection (&rest ip-sets)
+  (if (null ip-sets)
+      (make-ip-set nil)
+      (let ((inter (shallow-copy-object (first ip-sets))))
+        (check-type inter ip-set)
+        (loop for ip-set in (rest ip-sets) do
+          (progn (check-type ip-set ip-set)
+                 (setf (slot-value inter 'set)
+                       (remove nil (loop for x in (slot-value inter 'set)
+                                         append (loop for y in (slot-value ip-set 'set)
+                                                      collect (intersect x y)))))))
+        inter)))
+
+(defun ip-set-difference (&rest ip-sets)
+  (if (null ip-sets)
+      (make-ip-set nil)
+      (let ((diff (shallow-copy-object (first ip-sets))))
+        (check-type diff ip-set)
+        (loop for ip-set in (rest ip-sets) do
+              (progn (check-type ip-set ip-set)
+                     (with-slots ((set1 set)) diff
+                       (with-slots ((set2 set)) ip-set
+                         (setf set1
+                               ;; We must compute the difference pair-wise
+                               ;; because the subtrahend may be a superset of
+                               ;; multiple minuends.
+                               (loop for x in set1
+                                     append (loop for y in set2
+                                                  with new-xs = (list x)
+                                                  do (setf new-xs (ax:mappend (lambda (new-x)
+                                                                                (subtract new-x y))
+                                                                              new-xs))
+                                                  finally (return new-xs))))))))
+        diff)))
+
+(defun ip-set-symmetric-difference (&rest ip-sets)
+  (ip-set-difference (apply #'ip-set-union ip-sets)
+                     (apply #'ip-set-intersection ip-sets)))

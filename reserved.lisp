@@ -9,10 +9,10 @@
 (defvar *ipv4-multicast* (make-ip-set (list #I("224.0.0.0/4"))))
 (defvar *ipv4-6to4* (make-ip-set (list #I("192.88.99.0/24"))))
 (defvar *ipv4-reserved*
-  (ip-set-union (ip-set-union (make-ip-set #I("0.0.0.0/8" "192.0.2.0/24" "240.0.0.0/4" "198.51.100.0/24" "203.0.113.0/24" "203.0.113.0/24" "233.252.0.0/24"))
-                              *ipv4-loopback*)
-                (ip-set-union *ipv4-rfc-1918*
-                              *ipv4-link-local*)))
+  (ip-set-union (make-ip-set #I("0.0.0.0/8" "192.0.2.0/24" "240.0.0.0/4" "198.51.100.0/24" "203.0.113.0/24" "203.0.113.0/24" "233.252.0.0/24"))
+                *ipv4-loopback*
+                *ipv4-rfc-1918*
+                *ipv4-link-local*))
 (defvar *ipv4-not-globally-reachable*
   (ip-set-union *ipv4-reserved*
                 (make-ip-set #I("100.64.0.0/10" "192.0.0.0/24" "192.0.0.170/31" "198.18.0.0/15" "255.255.255.255/32"))))
@@ -28,10 +28,10 @@
   (make-ip-set #I("ff00::/12" "::/8" "0100::/8" "0200::/7" "0400::/6" "0800::/5" "1000::/4" "4000::/3"
                   "6000::/3" "8000::/3" "a000::/3" "c000::/3" "e000::/4" "f000::/5" "f800::/6" "fe00::/9")))
 (defvar *ipv6-not-globally-reachable*
-  (ip-set-union (ip-set-union (make-ip-set #I("::/128" "::ffff:0:0/96" "64:ff9b:1::/48" "100::/64" "2001::/23" "2001:db8::/32" "2002::/16"))
-                              *ipv6-lookback*)
-                (ip-set-union *ipv6-unique-local*
-                              *ipv6-link-local*)))
+  (ip-set-union (make-ip-set #I("::/128" "::ffff:0:0/96" "64:ff9b:1::/48" "100::/64" "2001::/23" "2001:db8::/32" "2002::/16"))
+                *ipv6-lookback*
+                *ipv6-unique-local*
+                *ipv6-link-local*))
 (defvar *ipv6-not-globally-reachable-exceptions*
   (make-ip-set #I("2001:1::1/128" "2001:1::2/128" "2001:3::/32" "2001:4:112::/48" "2001:20::/28" "2001:30::/28")))
 
