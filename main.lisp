@@ -15,9 +15,9 @@
 ;; TODOs:
 ;;
 ;; Probably a good idea to set the class hierarchy such that:
-;; * all IP classes (IP-LIKE)
-;; * IP-PAIRs and IP-SETs
-;; * everything except IP-SETs.
+;; * all IP classes (IP*)
+;; * IP-PAIRs and IP-SETs (IP+)
+;; * everything except IP-SETs (IP-LIKE)?
 ;;
 ;;
 ;; Refactor to separate files.
@@ -97,9 +97,11 @@
 (defclass ip-like () ((version :reader version)))
 
 (defclass ip-address (ip-like)
-  ((str :initarg :str :reader str)
+  ((str :initarg :str :reader str
+        :documentation "String representation of the IP-ADDRESS.")
    (version :reader version)
-   (int :initarg :int :reader int)))
+   (int :initarg :int :reader int
+        :documentation "Integer representation of the IP-ADDRESS.")))
 
 (defmethod initialize-instance :after ((ip ip-address) &key)
   (cond ((slot-boundp ip 'str)
@@ -123,6 +125,7 @@
         (t (error "Must specify either STR or INT."))))
 
 (defgeneric make-ip-address (str-or-int)
+  (:documentation "Make an IP-ADDRESS object from a STRING or INTEGER representation.")
   (:method ((str string))
     (make-instance 'ip-address :str str))
   (:method ((int integer))
@@ -144,6 +147,7 @@
    (mask :reader mask)))
 
 (defun make-ip-network (str)
+  "Make an IP-NETWORK object from a string STR in CIDR notation, e.g., \"10.20.30.40/24\" or \"ffff::/96\"."
   (make-instance 'ip-network :str str))
 
 (defmethod initialize-instance :after ((net ip-network) &key)
@@ -185,6 +189,7 @@
             6)))
 
 (defun make-ip-range (first last)
+  "Make an IP-RANGE object given two STRINGs or INTEGERs that represent valid IP addresses as expected by MAKE-IP-ADDRESS. LAST must be greater than or equal to FIRST."
   (make-instance 'ip-range :first-ip (make-ip-address first) :last-ip (make-ip-address last)))
 
 (defmethod print-object ((range ip-range) out)
@@ -195,6 +200,7 @@
   ((set :initarg :entries :initform '())))
 
 (defun make-ip-set (set)
+  "Make an IP-SET object given a list of IP-LIKEs."
   (check-type set list)
   (dolist (set-element set)
     (check-type set-element ip-like))
@@ -321,6 +327,7 @@
     (check-type ip-like ip-like)))
 
 (defgeneric ip-equal (ip-like-1 ip-like-2)
+  (:documentation "Returns T if IP-LIKE-1 and IP-LIKE-2 represent the same underlying IP address(es), are the same version of IP, and are instances of the same class (one of IP-ADDRESS, IP-PAIR, or IP-SET), or otherwise NIL.")
   (:method ((ip1 ip-address) (ip2 ip-address))
     (and (= (int ip1) (int ip2))
          (= (version ip1) (version ip2))))
@@ -343,9 +350,11 @@
     (check-type ip-like-2 ip-like)))
 
 (defun ip= (ip-like-1 ip-like-2)
+  "Synonym for IP-EQUAL."
   (ip-equal ip-like-1 ip-like-2))
 
 (defgeneric ip-equalp (ip-like-1 ip-like-2)
+  (:documentation "Returns T if IP-LIKE-1 and IP-LIKE-2 represent the same underlying IP address(es), and are the same version of IP, or otherwise NIL. IP-RANGEs or IP-NETWORKs that contain a single IP will be IP-EQUALP to the IP-ADDRESS, e.g., ")
   (:method ((ip ip-address) (pair ip-pair))
     (and (= (int ip) (int (first-ip pair)) (int (last-ip pair)))
          (= (version ip) (version pair))))
@@ -399,19 +408,24 @@
                                                      last-str)))))))))
 
 (defun subset? (ip-like-1 ip-like-2)
+  "Returns T or an IP-LIKE if IP-LIKE-1 is a subset of IP-LIKE-2. This is synonymous with (CONTAINS? IP-LIKE-2 IP-LIKE-1). Otherwise, returns NIL."
   (contains? ip-like-2 ip-like-1))
 
 (defun strict-subset? (ip-like-1 ip-like-2)
+  "Returns T or an IP-LIKE if IP-LIKE-1 is a subset and not IP-EQUAL to IP-LIKE-2."
   (and (not (ip= ip-like-1 ip-like-2))
        (subset? ip-like-1 ip-like-2)))
 
 (defun superset? (ip-like-1 ip-like-2)
+  "Returns T or an IP-LIKE if IP-LIKE-1 is a superset of IP-LIKE-2. Otherwise, NIL."
   (subset? ip-like-2 ip-like-1))
 
 (defun strict-superset? (ip-like-1 ip-like-2)
+  "Returns T or an IP-LIKE if IP-LIKE-1 is a superset of and not IP-EQUAL to IP-LIKE-2. Otherwise, NIL."
   (strict-subset? ip-like-2 ip-like-1))
 
 (defgeneric disjoint? (ip-like-1 ip-like-2)
+  (:documentation "Return T if IP-LIKE-1 and IP-LIKE-2 are disjoint, i.e., they share no IP addresses in common.")
   (:method ((i1 ip-address) (i2 ip-address))
     (not (ip= i1 i2)))
   (:method ((p ip-pair) (i ip-address))
@@ -428,6 +442,7 @@
     (check-type ip-like-2 ip-like)))
 
 (defgeneric contiguous? (ip-like-1 ip-like-2)
+  (:documentation "Returns T if IP-LIKE-1 and IP-LIKE-2 are contiguous, NIL otherwise.")
   (:method ((i1 ip-address) (i2 ip-address))
     (= 1 (abs (- (int i1) (int i2)))))
   (:method ((p ip-pair) (i ip-address))
@@ -479,8 +494,6 @@
           ((contains? p2 p1) p1)
           (t nil))))
 
-;; DOIPS macro. Huh, for this you'd need an IP-INCF which you deleted :\.
-
 (defun compact! (set)
   (with-slots (set) set
     (setf set (delete-duplicates (sort set #'compare)
@@ -505,25 +518,30 @@
         (push ip-like set))))
 
 (defun addnew! (set &rest ip-likes)
+  "Push IP-LIKES to IP-SET SET if they are not already a member or a subset of a member of SET. Returns the modified IP-SET."
   (loop for ip-like in ip-likes do (%addnew! set ip-like))
   set)
 
 (defun addnew (set &rest ip-likes)
+  "Creates a fresh IP-SET that contains the original contents of SET as well as the IP-LIKES that are not already a member or a subset of a member of SET. Returns the fresh IP-SET."
   (let ((new-set (shallow-copy-object set)))
     (apply #'addnew! new-set ip-likes)
     new-set))
 
 (defun add! (set &rest ip-likes)
+  "Prepend in place IP-LIKES to the IP-SET SET. Returns the modified IP-SET."
   (with-slots (set) set
     (setf set (append ip-likes set)))
   set)
 
 (defun add (set &rest ip-likes)
+  "Creates a copy of SET with IP-LIKES prepended."
   (let ((new-set (shallow-copy-object set)))
     (apply #'add! new-set ip-likes)
     new-set))
 
 (defun subtract (ip-like-1 ip-like-2)
+  "Return a fresh list of IP-RANGEs that represents IP-LIKE-1 after removing all IPs in IP-LIKE-2. If IP-LIKE-1 and IP-LIKE-2 are disjoint, a list containing the original IP-LIKE-1 is returned."
   (if (= (version ip-like-1) (version ip-like-2))
       (let ((r1 (->ip-range ip-like-1))
             (r2 (->ip-range ip-like-2)))
@@ -544,6 +562,7 @@
       (list ip-like-1)))
 
 (defun sub! (set &rest ip-likes)
+  "Remove IP-LIKES from IP-SET SET in place. IP-LIKES that are a member or superset of a member of SET are removed. IP-LIKES that are a subset of a member of SET are SUBTRACTed in place."
   (check-type set ip-set)
   (if (null ip-likes)
       set
@@ -557,6 +576,7 @@
         (apply #'sub! set (rest ip-likes)))))
 
 (defun sub (set &rest ip-likes)
+  "Like SUB! but return a fresh IP-SET without modifying the argument SET in place."
   (let ((new-set (shallow-copy-object set)))
     (apply #'sub! new-set ip-likes)
     new-set))
@@ -565,7 +585,9 @@
 (defun in-set? (ip ip-block)
   (contains? ip-block ip))
 
+;; TODO: Change to IP*-1, IP*-2.
 (defgeneric contains? (ip-like-1 ip-like-2)
+  (:documentation "Returns T or an IP-LIKE if IP-LIKE-1 contains IP-LIKE-2, NIL otherwise.")
   (:method ((ip1 ip-address) (ip2 ip-address))
     (ip= ip1 ip2))
   (:method ((pair ip-pair) (ip ip-address))
@@ -589,6 +611,7 @@
     (check-type ip-like-2 ip-like)))
 
 (defgeneric size (ip-like)
+  (:documentation "Returns an INTEGER of the number of IP addresses contained in IP-LIKE.")
   (:method ((ip ip-address)) 1)
   (:method ((pair ip-pair))
     (1+ (- (int (last-ip pair))
@@ -598,16 +621,18 @@
      (reduce #'+ (mapcar #'size set)))))
 
 (defun ip-set-union (&rest ip-sets)
+  "Returns a fresh IP-SET that is the set union of all IP-SETS."
   (let ((res (make-ip-set nil)))
     (loop for ip-set in ip-sets do
-          (with-slots ((set1 set)) res
-            (with-slots ((set2 set)) ip-set
-              ;; APPEND does not copy the last argument, CONCATENATE does.
-              (progn (check-type ip-set ip-set)
-                     (setf set1 (concatenate 'list set1 set2))))))
+      (with-slots ((set1 set)) res
+        (with-slots ((set2 set)) ip-set
+          ;; APPEND does not copy the last argument, CONCATENATE does.
+          (progn (check-type ip-set ip-set)
+                 (setf set1 (concatenate 'list set1 set2))))))
     (compact! res)))
 
 (defun ip-set-intersection (&rest ip-sets)
+  "Returns a fresh IP-SET that is the set intersection of all IP-SETS."
   (if (null ip-sets)
       (make-ip-set nil)
       (let ((inter (shallow-copy-object (first ip-sets))))
@@ -620,28 +645,32 @@
                                                       collect (intersect x y)))))))
         inter)))
 
+;; TODO: (ip-set-difference (first ip-sets) (apply #'ip-set-union (rest ip-sets))) might
+;; be a cleaner representation?
 (defun ip-set-difference (&rest ip-sets)
+  "Returns a fresh IP-SET that is the set difference of (first IP-SETS) from (rest IP-SETS)."
   (if (null ip-sets)
       (make-ip-set nil)
       (let ((diff (shallow-copy-object (first ip-sets))))
         (check-type diff ip-set)
         (loop for ip-set in (rest ip-sets) do
-              (progn (check-type ip-set ip-set)
-                     (with-slots ((set1 set)) diff
-                       (with-slots ((set2 set)) ip-set
-                         (setf set1
-                               ;; We must compute the difference pair-wise
-                               ;; because the subtrahend may be a superset of
-                               ;; multiple minuends.
-                               (loop for x in set1
-                                     append (loop for y in set2
-                                                  with new-xs = (list x)
-                                                  do (setf new-xs (ax:mappend (lambda (new-x)
-                                                                                (subtract new-x y))
-                                                                              new-xs))
-                                                  finally (return new-xs))))))))
+          (progn (check-type ip-set ip-set)
+                 (with-slots ((set1 set)) diff
+                   (with-slots ((set2 set)) ip-set
+                     (setf set1
+                           ;; We must compute the difference pair-wise
+                           ;; because the subtrahend may be a superset of
+                           ;; multiple minuends.
+                           (loop for x in set1
+                                 append (loop for y in set2
+                                              with new-xs = (list x)
+                                              do (setf new-xs (ax:mappend (lambda (new-x)
+                                                                            (subtract new-x y))
+                                                                          new-xs))
+                                              finally (return new-xs))))))))
         diff)))
 
 (defun ip-set-symmetric-difference (&rest ip-sets)
+  "Returns a fresh IP-SET that is the set symmetric difference of IP-SETS, i.e., the difference of the union and intersection of IP-SETS."
   (ip-set-difference (apply #'ip-set-union ip-sets)
                      (apply #'ip-set-intersection ip-sets)))

@@ -44,15 +44,18 @@
 
 ;; Lookup functions
 (defun private? (ip)
+  "Returns T if IP is a private IP address, otherwise NIL."
   (check-type ip ip-like)
   (contains? *private* ip))
 
 (defun public? (ip)
+  "Returns T if IP is a public IP address, otherwise NIL."
   (check-type ip ip-like)
   (ax:if-let ((exception (contains? *non-routable-exceptions* ip)))
     exception
     (not (contains? *non-routable* ip))))
 
 (defun reserved? (ip)
+  "Returns T if IP is a reserved IP address, otherwise NIL."
   (check-type ip ip-like)
   (contains? *reserved* ip))
