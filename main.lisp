@@ -35,10 +35,6 @@
 ;; * Handle all kinds of string formats: https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
 ;;
 ;; Add DECLARE types for functions to give better error messages.
-;;
-;; Add documentation with STAPLE. See the following for examples:
-;; * https://shinmera.github.io/open-with/
-;; * https://github.com/Shinmera/open-with/blob/main/README.mess
 
 ;; I made an interesting design choice to let CONTAINS? work with all IP-LIKEs, e.g.,
 ;;
