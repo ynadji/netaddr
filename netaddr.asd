@@ -13,7 +13,7 @@
 (asdf:defsystem :netaddr/tests
   :author "Yacin Nadji <ynadji@gmail.com>"
   :license "MIT"
-  :depends-on ("netaddr" "fiveam" "arrow-macros")
+  :depends-on ("netaddr" "fiveam")
   :components ((:file "tests"))
   :perform (test-op (o c) (symbol-call :fiveam '#:run!
                                        (uiop:find-symbol* '#:tests
