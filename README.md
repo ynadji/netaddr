@@ -5,9 +5,8 @@ and sets. It is inspired by its namesake library in Python,
 [netaddr](https://github.com/netaddr/netaddr). NETADDR supports/provides:
 
 * IPv4 and IPv6 addresses, subnets, and ranges.
-* Shorthand syntax for the above, e.g., `#I("192.168.1.0/24")`, `#I("::-ffff::")`,
-  and `#I("0.0.0.0" "1.1.1.1")` do what you would expect. This can be enabled
-  by calling `ENABLE-IP-SYNTAX` before usage.
+* Shorthand syntax for the above with a reader macro `#I`. See the [IP
+  Syntax](#IP-syntax) section for details.
 * Helper lookup functions for reserved space, e.g., `PRIVATE?`, `RESERVED?`, and
   `PUBLIC?`.
 * An `IP-SET` data structure for working with sets of addresses, subnets, and
@@ -56,6 +55,12 @@ an `IP-LIKE` as its second argument because:
 ## Equality
 
 ## IP Syntax
+
+NETADDR provides a shorthand syntax for defining `IP-LIKE`s from strings with
+the reader macro `#I` that can be enabled by first calling `ENABLE-IP-SYNTAX`.
+If a single argument is provided, a single object is returned. If multiple
+arguments are provided, a list of objects is returned. Example usage is shown
+below:
 
 ```
 NETADDR> #I("1.2.3.4")
