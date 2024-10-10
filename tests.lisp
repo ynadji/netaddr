@@ -32,6 +32,8 @@
   (is (null (ignore-errors (make-ip-address "not-and-ip-address"))))
   (is (null (ignore-errors (make-instance 'ip-address))))
   (is (null (ignore-errors (make-ip-address nil))))
+  (is (null (ignore-errors (make-ip-address -1))))
+  (is (null (ignore-errors (make-ip-address (expt 2 128)))))
   (is (null (ignore-errors (make-ip-address '(1 2 3)))))
   (is (null (ignore-errors (make-ip-range "1.1.1.1" "0.0.0.0"))))
   (is (null (ignore-errors (make-ip-range "::ffff" "::"))))

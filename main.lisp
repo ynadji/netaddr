@@ -112,6 +112,8 @@
                   (t (error "~a is not an IP address string" str)))))
         ((slot-boundp ip 'int)
          (with-slots (int) ip
+           (unless (<= 0 int (1- (expt 2 128)))
+             (error "INT is not 0 <= ~a <= (1- (expt 2 128))" int))
            ;; TODO: cleaner way to do this maybe?
            (if (< int (expt 2 32))
                (progn (setf (slot-value ip 'version) 4)
