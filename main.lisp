@@ -15,9 +15,8 @@
 ;; TODOs:
 ;;
 ;; Probably a good idea to set the class hierarchy such that:
-;; * all IP classes (IP*)
-;; * IP-PAIRs and IP-SETs (IP+)
-;; * everything except IP-SETs (IP-LIKE)?
+;; * all IP classes (IP+)
+;; * everything except IP-SETs (IP-LIKE)
 ;;
 ;;
 ;; Refactor to separate files.
@@ -90,7 +89,13 @@
 (setf cr:*creal-tolerance* 120)
 
 ;;;; CLASSes
-(defclass ip-like () ((version :reader version)))
+(defclass ip+ () ())
+(defclass ip-like (ip+) ((version :reader version)))
+
+(defgeneric str (ip-address)
+  (:documentation "Returns the string representation of IP-ADDRESS."))
+(defgeneric int (ip-address)
+  (:documentation "Returns the integer representation of IP-ADDRESS."))
 
 (defclass ip-address (ip-like)
   ((str :initarg :str :reader str
@@ -194,7 +199,7 @@
   (print-unreadable-object (range out :type t)
     (format out "~a-~a" (str (first-ip range)) (str (last-ip range)))))
 
-(defclass ip-set (ip-like)
+(defclass ip-set (ip+)
   ((set :initarg :entries :initform '())))
 
 (defun make-ip-set (set)
@@ -324,8 +329,8 @@
   (:method ((ip-like t))
     (check-type ip-like ip-like)))
 
-(defgeneric ip-equal (ip-like-1 ip-like-2)
-  (:documentation "Returns T if IP-LIKE-1 and IP-LIKE-2 represent the same underlying IP address(es), are the same version of IP, and are instances of the same class (one of IP-ADDRESS, IP-PAIR, or IP-SET), or otherwise NIL.")
+(defgeneric ip-equal (ip+1 ip+2)
+  (:documentation "Returns T if IP+1 and IP+2 represent the same underlying IP address(es), are the same version of IP, and are instances of the same class (one of IP-ADDRESS, IP-PAIR, or IP-SET), or otherwise NIL.")
   (:method ((ip1 ip-address) (ip2 ip-address))
     (and (= (int ip1) (int ip2))
          (= (version ip1) (version ip2))))
@@ -341,18 +346,18 @@
                    (sort set2 #'compare)
                    (every #'ip-equal set1 set2))))))
   ;; Default case when the types of the two arguments do not match.
-  (:method ((x ip-like) (y ip-like))
+  (:method ((x ip+) (y ip+))
     nil)
-  (:method ((ip-like-1 t) (ip-like-2 t))
-    (check-type ip-like-1 ip-like)
-    (check-type ip-like-2 ip-like)))
+  (:method ((ip+1 t) (ip+2 t))
+    (check-type ip+1 ip+)
+    (check-type ip+2 ip+)))
 
-(defun ip= (ip-like-1 ip-like-2)
+(defun ip= (ip+1 ip+2)
   "Synonym for IP-EQUAL."
-  (ip-equal ip-like-1 ip-like-2))
+  (ip-equal ip+1 ip+2))
 
-(defgeneric ip-equalp (ip-like-1 ip-like-2)
-  (:documentation "Returns T if IP-LIKE-1 and IP-LIKE-2 represent the same underlying IP address(es), and are the same version of IP, or otherwise NIL. IP-RANGEs or IP-NETWORKs that contain a single IP will be IP-EQUALP to the IP-ADDRESS, e.g., ")
+(defgeneric ip-equalp (ip+1 ip+2)
+  (:documentation "Returns T if IP+1 and IP+2 represent the same underlying IP address(es), and are the same version of IP, or otherwise NIL. IP-RANGEs or IP-NETWORKs that contain a single IP will be IP-EQUALP to the IP-ADDRESS, e.g., ")
   (:method ((ip ip-address) (pair ip-pair))
     (and (= (int ip) (int (first-ip pair)) (int (last-ip pair)))
          (= (version ip) (version pair))))
@@ -368,11 +373,11 @@
             (progn (sort set1 #'compare)
                    (sort set2 #'compare)
                    (every #'ip-equalp set1 set2))))))
-  (:method ((x ip-like) (y ip-like))
+  (:method ((x ip+) (y ip+))
     (ip-equal x y))
-  (:method ((ip-like-1 t) (ip-like-2 t))
-    (check-type ip-like-1 ip-like)
-    (check-type ip-like-2 ip-like)))
+  (:method ((ip+1 t) (ip+2 t))
+    (check-type ip+1 ip+)
+    (check-type ip+2 ip+)))
 
 (defun make-ip-like (ip-or-network-or-range-str)
   (check-type ip-or-network-or-range-str string)
@@ -407,19 +412,27 @@
 
 (defun subset? (ip-like-1 ip-like-2)
   "Returns T or an IP-LIKE if IP-LIKE-1 is a subset of IP-LIKE-2. This is synonymous with (CONTAINS? IP-LIKE-2 IP-LIKE-1). Otherwise, returns NIL."
+  (check-type ip-like-1 ip-like)
+  (check-type ip-like-2 ip-like)
   (contains? ip-like-2 ip-like-1))
 
 (defun strict-subset? (ip-like-1 ip-like-2)
   "Returns T or an IP-LIKE if IP-LIKE-1 is a subset and not IP-EQUAL to IP-LIKE-2."
+  (check-type ip-like-1 ip-like)
+  (check-type ip-like-2 ip-like)
   (and (not (ip= ip-like-1 ip-like-2))
        (subset? ip-like-1 ip-like-2)))
 
 (defun superset? (ip-like-1 ip-like-2)
   "Returns T or an IP-LIKE if IP-LIKE-1 is a superset of IP-LIKE-2. Otherwise, NIL."
+  (check-type ip-like-1 ip-like)
+  (check-type ip-like-2 ip-like)
   (subset? ip-like-2 ip-like-1))
 
 (defun strict-superset? (ip-like-1 ip-like-2)
   "Returns T or an IP-LIKE if IP-LIKE-1 is a superset of and not IP-EQUAL to IP-LIKE-2. Otherwise, NIL."
+  (check-type ip-like-1 ip-like)
+  (check-type ip-like-2 ip-like)
   (strict-subset? ip-like-2 ip-like-1))
 
 (defgeneric disjoint? (ip-like-1 ip-like-2)
@@ -474,6 +487,8 @@
   ;; Explicitly make v4 always less than v6 so when we sort we are consistent
   ;; when two IPs have the same value but different versions, e.g., #I("::") vs.
   ;; #I("0.0.0.0").
+  (check-type ip-like-1 ip-like)
+  (check-type ip-like-2 ip-like)
   (if (= (version ip-like-1) (version ip-like-2))
       (%compare ip-like-1 ip-like-2)
       (< (version ip-like-1) (version ip-like-2))))
@@ -490,7 +505,10 @@
   (:method ((p1 ip-pair) (p2 ip-pair))
     (cond ((contains? p1 p2) p2)
           ((contains? p2 p1) p1)
-          (t nil))))
+          (t nil)))
+  (:method ((ip-like-1 t) (ip-like-2 t))
+    (check-type ip-like-1 ip-like)
+    (check-type ip-like-2 ip-like)))
 
 (defun compact! (set)
   (with-slots (set) set
@@ -540,6 +558,8 @@
 
 (defun subtract (ip-like-1 ip-like-2)
   "Return a fresh list of IP-RANGEs that represents IP-LIKE-1 after removing all IPs in IP-LIKE-2. If IP-LIKE-1 and IP-LIKE-2 are disjoint, a list containing the original IP-LIKE-1 is returned."
+  (check-type ip-like-1 ip-like)
+  (check-type ip-like-2 ip-like)
   (if (= (version ip-like-1) (version ip-like-2))
       (let ((r1 (->ip-range ip-like-1))
             (r2 (->ip-range ip-like-2)))
@@ -583,9 +603,8 @@
 (defun in-set? (ip ip-block)
   (contains? ip-block ip))
 
-;; TODO: Change to IP*-1, IP*-2.
-(defgeneric contains? (ip-like-1 ip-like-2)
-  (:documentation "Returns T or an IP-LIKE if IP-LIKE-1 contains IP-LIKE-2, NIL otherwise.")
+(defgeneric contains? (ip+ ip-like)
+  (:documentation "Returns T or an IP-LIKE if IP+ contains IP-LIKE, NIL otherwise.")
   (:method ((ip1 ip-address) (ip2 ip-address))
     (ip= ip1 ip2))
   (:method ((pair ip-pair) (ip ip-address))
@@ -600,23 +619,23 @@
   (:method ((ip ip-address) (pair ip-pair))
     (and (= (version ip) (version pair))
          (= (int ip) (int (first-ip pair)) (int (last-ip pair)))))
-  (:method ((set ip-set) (ip ip-address))
-    (car (member ip (slot-value set 'set) :test #'in-set?)))
-  (:method ((set ip-set) (pair ip-pair))
-    (car (member pair (slot-value set 'set) :test #'in-set?)))
-  (:method ((ip-like-1 t) (ip-like-2 t))
-    (check-type ip-like-1 ip-like)
-    (check-type ip-like-2 ip-like)))
+  (:method ((set ip-set) (ip-like ip-like))
+    (car (member ip-like (slot-value set 'set) :test #'in-set?)))
+  (:method ((ip+ t) (ip-like t))
+    (check-type ip+ ip+)
+    (check-type ip-like ip-like)))
 
-(defgeneric size (ip-like)
-  (:documentation "Returns an INTEGER of the number of IP addresses contained in IP-LIKE.")
+(defgeneric size (ip+)
+  (:documentation "Returns an INTEGER of the number of IP addresses contained in IP+.")
   (:method ((ip ip-address)) 1)
   (:method ((pair ip-pair))
     (1+ (- (int (last-ip pair))
            (int (first-ip pair)))))
   (:method ((set ip-set))
     (with-slots (set) set
-     (reduce #'+ (mapcar #'size set)))))
+     (reduce #'+ (mapcar #'size set))))
+  (:method ((ip+ t))
+    (check-type ip+ ip+)))
 
 (defun ip-set-union (&rest ip-sets)
   "Returns a fresh IP-SET that is the set union of all IP-SETS."
