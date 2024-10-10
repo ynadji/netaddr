@@ -1,94 +1,11 @@
 (in-package :netaddr)
 
-;; This library is kinda close:
-;; https://github.com/jfrancis42/ipcalc-lisp/tree/master mostly focused on
-;; converting between representations. Hah, they also just looked for #\: or #\.
-;; in the addresses d;D.
-;;
-;; Also a good similar candidate:
-;; https://github.com/jdz/ip/blob/master/src/ip.lisp Doesn't have: ranges,
-;; ip-sets, ipv6 support. Probably faster so worth considering if we're trying
-;; to speed things up.
-;;
-;; I'd say still different enough it would be worth releasing.
-
-;; TODOs:
-;;
-;; Probably a good idea to set the class hierarchy such that:
-;; * all IP classes (IP+)
-;; * everything except IP-SETs (IP-LIKE)
-;;
-;;
-;; Refactor to separate files.
-;;
-;; When it comes time to make things faster (prob) in order of importance:
-;; * better IP-SET data structure
-;; * http://metamodular.com/CLOS-MOP/standard-instance-access.html for slot access speedup
-;; * https://github.com/marcoheisig/sealable-metaobjects for generic function speedup
-;; * https://github.com/AccelerationNet/cl-cidr-notation/blob/master/src/cl-cidr-notation.lisp for parsing
-;;
-;; My hunch is after the first one, the others won't really be necessary and
-;; will just decrease code readability.
-;;
-;; IPv6 stuff:
-;; * Handle all kinds of string formats: https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
-;;
-;; Add DECLARE types for functions to give better error messages.
-
-;; I made an interesting design choice to let CONTAINS? work with all IP-LIKEs, e.g.,
-;;
-;; NETADDR> (contains? #I("1.2.3.4") #I("1.2.3.4"))
-;; T
-;; NETADDR> (contains? #I("1.2.3.4") #I("1.2.3.4/32"))
-;; T
-;; NETADDR> (contains? #I("1.2.3.4-1.2.3.4") #I("1.2.3.4/32"))
-;; T
-;;
-;; IP=/IP-EQUAL are the same and only compare equivalent types, i.e., IP-LIKEs
-;; and IP-ADDRESSes are considered separately. But an IP-RANGE and IP-NETWORK
-;; that represent the same group of IPs can be IP-EQUAL. IP-EQUALP is more
-;; flexible, and considered IPs to be equal to their single IP IP-RANGE and
-;; IP-NETWORK counterparts.
-;;
-;; NETADDR> (ip= #I("1.2.3.4-1.2.3.4") #I("1.2.3.4/32"))
-;; T
-;; NETADDR> (ip= #I("1.2.3.4") #I("1.2.3.4/32"))
-;; NIL
-;; NETADDR> (ip= #I("1.2.3.4") #I("1.2.3.4-1.2.3.4"))
-;; NIL
-;; NETADDR> (ip-equalp #I("1.2.3.4") #I("1.2.3.4/32"))
-;; T
-;; NETADDR> (ip-equalp #I("1.2.3.4") #I("1.2.3.4-1.2.3.4"))
-;; T
-;;
-;; I _think_ this makes sense, because the underlying data being represented are
-;; identical. This isn't exactly the same as in Python's netaddr:
-;;
-;; >>> '1.0.0.0/8' in IPNetwork('1.0.0.0/8')
-;; True
-;; >>> IPRange('1.0.0.0', '1.255.255.255') == IPNetwork('1.0.0.0/8')
-;; True
-;; >>> IPAddress('1.2.3.4') == IPNetwork('1.2.3.4/32')
-;; False
-;; >>> IPAddress('1.2.3.4') in IPNetwork('1.2.3.4/32')
-;; True
-;;
-;; That amount of flexibility with CONTAINS? probably makes sense, and you can
-;; just make SUBSET?/etc. _use_ CONTAINS? other the hood so you get that for
-;; free. If you make DISJOINT? and CONTIGUOUS? work with IPs as well, that makes
-;; all of those nice and generic.
-;;
-;; Spend time thinking about if IP= makes sense to consider ranges/CIDRs of one
-;; IP equal to just that IP. Maybe it's worth doing IP-EQUAL and IP-EQUALP? I
-;; guess you could have all three and have IP= be the same as IP-EQUAL, since
-;; that's mostly what users would actually want. For IP-SETs, however, it's
-;; clear I want to consider those the same.
-
-;; NB: Needed to bump this to ensure I can compute enough bits in RANGE->CIDR
-;; for very large IPv6 integers.
+;; Needed to bump this to ensure I can compute enough bits in RANGE->CIDR for
+;; very large IPv6 integers.
 (setf cr:*creal-tolerance* 120)
 
-;;;; CLASSes
+;;;; Class definitions and constructors.
+
 (defclass ip+ () ())
 (defclass ip-like (ip+) ((version :reader version)))
 
@@ -199,6 +116,13 @@
   (print-unreadable-object (range out :type t)
     (format out "~a-~a" (str (first-ip range)) (str (last-ip range)))))
 
+(defun make-ip-like (ip-like-str)
+  "Given a string for an IP-LIKE, infer the concrete type and return an object."
+  (check-type ip-like-str string)
+  (cond ((find #\/ ip-like-str) (make-ip-network ip-like-str))
+        ((find #\- ip-like-str) (apply #'make-ip-range (str:split "-" ip-like-str)))
+        (t (make-ip-address ip-like-str))))
+
 (defclass ip-set (ip+)
   ((set :initarg :entries :initform '())))
 
@@ -222,6 +146,8 @@
         (setf (slot-value copy slot)
               (slot-value original slot))))
     copy))
+
+;;;; String and integer manipulation and interop.
 
 ;; Grabbed from
 ;; https://stackoverflow.com/questions/5284147/validating-ipv4-addresses-with-regexp
@@ -317,10 +243,12 @@
       (setf (slot-value ip 'str) (ip-int-to-str (int ip) version))
       ip)))
 
+;;;; CIDRs and ranges interop.
+
 (defgeneric ->ip-range (ip-like)
   (:method ((ip-like ip-address))
     (let ((s (str ip-like)))
-     (make-ip-range s s)))
+      (make-ip-range s s)))
   (:method ((ip-like ip-pair))
     (with-slots (first-ip last-ip) ip-like
       (make-ip-range (str first-ip) (str last-ip))))
@@ -328,6 +256,33 @@
     ip-like)
   (:method ((ip-like t))
     (check-type ip-like ip-like)))
+
+;; Might not be super efficient from allocations and recursiveness. Particularly
+;; for poorly CIDR-aligned IPv6 ranges. Lots of CONSing.
+(defun range->cidrs (ip-range)
+  (flet ((get-bits (first-int last-int version)
+           (let ((diff+1 (1+ (- last-int first-int))))
+             (ecase version
+               (4 (floor (log (coerce diff+1 'double-float) 2)))
+               (6 (multiple-value-bind (q r) (cr:floor-r (cr:log-r diff+1 2))
+                    ;; NB: We only need 1 bit of information (was the remainder
+                    ;; 0 or not-zero.
+                    (values q (cr:rational-approx-r r 1))))))))
+    (let ((first-str (str (first-ip ip-range)))
+          (first-int (int (first-ip ip-range)))
+          (last-str (str (last-ip ip-range)))
+          (last-int (int (last-ip ip-range)))
+          (version (version (first-ip ip-range)))
+          (max-bits (ecase (version (first-ip ip-range)) (4 32) (6 128))))
+      (multiple-value-bind (bits remainder) (get-bits first-int last-int version)
+        (let ((net (make-ip-network (format nil "~a/~a" first-str (- max-bits bits)))))
+          (if (= remainder 0)
+              (list net)
+              (cons net (range->cidrs (make-ip-range (str (make-instance 'ip-address
+                                                                         :int (1+ (int (last-ip net)))))
+                                                     last-str)))))))))
+
+;;;; Equality methods.
 
 (defgeneric ip-equal (ip+1 ip+2)
   (:documentation "Returns T if IP+1 and IP+2 represent the same underlying IP address(es), are the same version of IP, and are instances of the same class (one of IP-ADDRESS, IP-PAIR, or IP-SET), or otherwise NIL.")
@@ -379,36 +334,7 @@
     (check-type ip+1 ip+)
     (check-type ip+2 ip+)))
 
-(defun make-ip-like (ip-or-network-or-range-str)
-  (check-type ip-or-network-or-range-str string)
-  (cond ((find #\/ ip-or-network-or-range-str) (make-ip-network ip-or-network-or-range-str))
-        ((find #\- ip-or-network-or-range-str) (apply #'make-ip-range (str:split "-" ip-or-network-or-range-str)))
-        (t (make-ip-address ip-or-network-or-range-str))))
-
-;; Might not be super efficient from allocations and recursiveness. Particularly
-;; for poorly CIDR-aligned IPv6 ranges. Lots of CONSing.
-(defun range->cidrs (ip-range)
-  (flet ((get-bits (first-int last-int version)
-           (let ((diff+1 (1+ (- last-int first-int))))
-             (ecase version
-               (4 (floor (log (coerce diff+1 'double-float) 2)))
-               (6 (multiple-value-bind (q r) (cr:floor-r (cr:log-r diff+1 2))
-                    ;; NB: We only need 1 bit of information (was the remainder
-                    ;; 0 or not-zero.
-                    (values q (cr:rational-approx-r r 1))))))))
-    (let ((first-str (str (first-ip ip-range)))
-          (first-int (int (first-ip ip-range)))
-          (last-str (str (last-ip ip-range)))
-          (last-int (int (last-ip ip-range)))
-          (version (version (first-ip ip-range)))
-          (max-bits (ecase (version (first-ip ip-range)) (4 32) (6 128))))
-      (multiple-value-bind (bits remainder) (get-bits first-int last-int version)
-        (let ((net (make-ip-network (format nil "~a/~a" first-str (- max-bits bits)))))
-          (if (= remainder 0)
-              (list net)
-              (cons net (range->cidrs (make-ip-range (str (make-instance 'ip-address
-                                                                         :int (1+ (int (last-ip net)))))
-                                                     last-str)))))))))
+;;;; Set-like predicates and operations for IP-LIKEs.
 
 (defun subset? (ip-like-1 ip-like-2)
   "Returns T or an IP-LIKE if IP-LIKE-1 is a subset of IP-LIKE-2. This is synonymous with (CONTAINS? IP-LIKE-2 IP-LIKE-1). Otherwise, returns NIL."
@@ -511,10 +437,54 @@
     (check-type ip-like-2 ip-like)))
 
 (defun compact! (set)
+  "Compact an IP-SET's internal data structure to remove duplicates and IP-LIKEs
+that are subsets of other IP-LIKEs already contained within the internal SET."
   (with-slots (set) set
     (setf set (delete-duplicates (sort set #'compare)
                                  :test #'subset? :from-end t)))
   set)
+
+;;;; Methods for CONTAINS? and SIZE for IP+ subclasses.
+
+;; To make CONTAINS? play nice with MEMBER.
+(defun in-set? (ip ip-block)
+  (contains? ip-block ip))
+
+(defgeneric contains? (ip+ ip-like)
+  (:documentation "Returns T or an IP-LIKE if IP+ contains IP-LIKE, NIL otherwise.")
+  (:method ((ip1 ip-address) (ip2 ip-address))
+    (ip= ip1 ip2))
+  (:method ((pair ip-pair) (ip ip-address))
+    (and (= (version pair) (version ip))
+         (<= (int (first-ip pair)) (int ip) (int (last-ip pair)))))
+  (:method ((pair1 ip-pair) (pair2 ip-pair))
+    (and (= (version pair1) (version pair2))
+         (<= (int (first-ip pair1))
+             (int (first-ip pair2))
+             (int (last-ip pair2))
+             (int (last-ip pair1)))))
+  (:method ((ip ip-address) (pair ip-pair))
+    (and (= (version ip) (version pair))
+         (= (int ip) (int (first-ip pair)) (int (last-ip pair)))))
+  (:method ((set ip-set) (ip-like ip-like))
+    (car (member ip-like (slot-value set 'set) :test #'in-set?)))
+  (:method ((ip+ t) (ip-like t))
+    (check-type ip+ ip+)
+    (check-type ip-like ip-like)))
+
+(defgeneric size (ip+)
+  (:documentation "Returns an INTEGER of the number of IP addresses contained in IP+.")
+  (:method ((ip ip-address)) 1)
+  (:method ((pair ip-pair))
+    (1+ (- (int (last-ip pair))
+           (int (first-ip pair)))))
+  (:method ((set ip-set))
+    (with-slots (set) set
+     (reduce #'+ (mapcar #'size set))))
+  (:method ((ip+ t))
+    (check-type ip+ ip+)))
+
+;;;; Functions for adding and removing IP-LIKEs to an IP-SET.
 
 (defun %addnew! (set ip-like)
   (check-type set ip-set)
@@ -599,43 +569,7 @@
     (apply #'sub! new-set ip-likes)
     new-set))
 
-;; To make CONTAINS? play nice with MEMBER.
-(defun in-set? (ip ip-block)
-  (contains? ip-block ip))
-
-(defgeneric contains? (ip+ ip-like)
-  (:documentation "Returns T or an IP-LIKE if IP+ contains IP-LIKE, NIL otherwise.")
-  (:method ((ip1 ip-address) (ip2 ip-address))
-    (ip= ip1 ip2))
-  (:method ((pair ip-pair) (ip ip-address))
-    (and (= (version pair) (version ip))
-         (<= (int (first-ip pair)) (int ip) (int (last-ip pair)))))
-  (:method ((pair1 ip-pair) (pair2 ip-pair))
-    (and (= (version pair1) (version pair2))
-         (<= (int (first-ip pair1))
-             (int (first-ip pair2))
-             (int (last-ip pair2))
-             (int (last-ip pair1)))))
-  (:method ((ip ip-address) (pair ip-pair))
-    (and (= (version ip) (version pair))
-         (= (int ip) (int (first-ip pair)) (int (last-ip pair)))))
-  (:method ((set ip-set) (ip-like ip-like))
-    (car (member ip-like (slot-value set 'set) :test #'in-set?)))
-  (:method ((ip+ t) (ip-like t))
-    (check-type ip+ ip+)
-    (check-type ip-like ip-like)))
-
-(defgeneric size (ip+)
-  (:documentation "Returns an INTEGER of the number of IP addresses contained in IP+.")
-  (:method ((ip ip-address)) 1)
-  (:method ((pair ip-pair))
-    (1+ (- (int (last-ip pair))
-           (int (first-ip pair)))))
-  (:method ((set ip-set))
-    (with-slots (set) set
-     (reduce #'+ (mapcar #'size set))))
-  (:method ((ip+ t))
-    (check-type ip+ ip+)))
+;;;; IP-SET set theoretic operations.
 
 (defun ip-set-union (&rest ip-sets)
   "Returns a fresh IP-SET that is the set union of all IP-SETS."
@@ -662,8 +596,6 @@
                                                       collect (intersect x y)))))))
         inter)))
 
-;; TODO: (ip-set-difference (first ip-sets) (apply #'ip-set-union (rest ip-sets))) might
-;; be a cleaner representation?
 (defun ip-set-difference (&rest ip-sets)
   "Returns a fresh IP-SET that is the set difference of (first IP-SETS) from (rest IP-SETS)."
   (if (null ip-sets)
