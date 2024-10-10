@@ -52,8 +52,6 @@ an `IP-LIKE` as its second argument because:
   range.
 * An `IP-SET` `CONTAINS?` any of its member `IP-LIKE`s, and so on.
 
-## Equality
-
 ## IP Syntax
 
 NETADDR provides a shorthand syntax for defining `IP-LIKE`s from strings with
