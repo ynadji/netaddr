@@ -62,6 +62,11 @@
     ((first-ip :reader first-ip)
      (last-ip :reader last-ip)))
 
+(defgeneric first-ip (ip-pair)
+  (:documentation "Returns the first IP-ADDRESS of an IP-NETWORK or IP-RANGE."))
+(defgeneric last-ip (ip-pair)
+  (:documentation "Returns the last IP-ADDRESS of an IP-NETWORK or IP-RANGE."))
+
 (defclass ip-network (ip-pair)
   ((str :initarg :str :reader str)
    (mask :reader mask)))

@@ -22,6 +22,8 @@
            :ip-equalp
            :int
            :str
+           :first-ip
+           :last-ip
            :size
            :ip-set-union
            :ip-set-intersection
