@@ -290,7 +290,8 @@
     (and (= (int ip1) (int ip2))
          (= (version ip1) (version ip2))))
   (:method ((p1 ip-pair) (p2 ip-pair))
-    (and (ip= (first-ip p1) (first-ip p2))
+    (and (eq (class-of p1) (class-of p2))
+         (ip= (first-ip p1) (first-ip p2))
          (ip= (last-ip p1) (last-ip p2))))
   (:method ((s1 ip-set) (s2 ip-set))
     (with-slots ((set1 set)) s1
@@ -318,6 +319,9 @@
          (= (version ip) (version pair))))
   (:method ((pair ip-pair) (ip ip-address))
     (ip-equalp ip pair))
+  (:method ((p1 ip-pair) (p2 ip-pair))
+    (and (ip= (first-ip p1) (first-ip p2))
+         (ip= (last-ip p1) (last-ip p2))))
   ;; TODO: Duplicating this just to change IP-EQUAL to IP-EQUALP sucks. I could
   ;; just include a &KEY argument, but that seems clunky. Not sure what to do.
   (:method ((s1 ip-set) (s2 ip-set))

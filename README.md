@@ -18,25 +18,25 @@ and sets. It is inspired by its namesake library in Python,
 ## Class Hierarchy
 
 ```
-                                            ┌ ─ ─ ─ ┐
-                                    ┌───────   IP+   ────────┐
-                                    │       └ ─ ─ ─ ┘        │
-                                    │                        │
-                                    │                        │
-                                    │                        │
-                                    ▼                        ▼
-                                ┌ ─ ─ ─ ┐              ┌──────────┐
-                                 IP-LIKE ◀─ ─ set of─ ─│  IP-SET  │
-                                └ ─ ─ ─ ┘              └──────────┘
-                                    │
-                                    │
-                       ┌────────────┼────────────┐
-                       │            │            │
-                       │            │            │
-                       ▼            ▼            ▼
-                 ┌──────────┐ ┌──────────┐ ┌──────────┐
-                 │IP-ADDRESS│ │IP-NETWORK│ │ IP-RANGE │
-                 └──────────┘ └──────────┘ └──────────┘
+                           ┌ ─ ─ ─ ┐
+                   ┌───────   IP+   ────────┐
+                   │       └ ─ ─ ─ ┘        │
+                   │                        │
+                   │                        │
+                   │                        │
+                   ▼                        ▼
+               ┌ ─ ─ ─ ┐              ┌──────────┐
+                IP-LIKE ◀─ ─ set of─ ─│  IP-SET  │
+               └ ─ ─ ─ ┘              └──────────┘
+                   │
+                   ├──────┐
+      ┌────────────┘      ▼
+      │               ┌ ─ ─ ─ ┐
+      │             ┌─ IP-PAIR ──┐
+      ▼             ▼ └ ─ ─ ─ ┘  ▼
+┌──────────┐  ┌──────────┐ ┌──────────┐
+│IP-ADDRESS│  │IP-NETWORK│ │ IP-RANGE │
+└──────────┘  └──────────┘ └──────────┘
 ```
 
 Users of this library will only instantiate the leaf classes in the tree above,
@@ -51,6 +51,42 @@ an `IP-LIKE` as its second argument because:
   networks or ranges, and any `IP-ADDRESS` that is a member of the network or
   range.
 * An `IP-SET` `CONTAINS?` any of its member `IP-LIKE`s, and so on.
+
+## Equality
+
+There are two equality operators for `IP+` subclasses:
+
+* `IP-EQUAL` (aliased to `IP=`)
+* `IP-EQUALP`
+
+Similar to Common Lisp's EQUAL and EQUALP, `IP-EQUAL` is more specific than
+`IP-EQUALP`. The former considers different classes to always be unequal, while
+the latter allows comparisons across all leaf classes described in the [Class
+Hierarchy](#Class-Hierarchy). For example:
+
+```
+NETADDR> (ip-equal #I("1.1.1.1") #I("1.1.1.1/32"))
+NIL
+NETADDR> (ip-equalp #I("1.1.1.1") #I("1.1.1.1/32"))
+T
+NETADDR> (ip-equalp #I("1.1.1.1") #I("1.1.1.1/31"))
+NIL
+NETADDR> (ip-equal #I("1.0.0.0/8") #I("1.0.0.0-1.255.255.255"))
+NIL
+NETADDR> (ip-equalp #I("1.0.0.0/8") #I("1.0.0.0-1.255.255.255"))
+T
+NETADDR> (ip-equal (make-ip-set (list #I("1.1.1.1"))) (make-ip-set (list #I("1.1.1.1/32"))))
+NIL
+NETADDR> (ip-equalp (make-ip-set (list #I("1.1.1.1"))) (make-ip-set (list #I("1.1.1.1/32"))))
+T
+```
+
+`IP-EQUAL` always returns NIL if classes are different. However, `IP-EQUALP`
+returns T if the underlying object refers to the same set of IP addresses,
+regardless of the concrete object type. In general, if you are comparing
+individual `IP-LIKE`s, you'll want to use `IP-EQUAL`. If you are comparing
+`IP-SET`s, which may contain a mixture of classes internally, or `IP-NETWORK`s
+and `IP-RANGE`s, you'll want to use `IP-EQUALP`.
 
 ## IP Syntax
 

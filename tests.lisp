@@ -235,14 +235,14 @@
      (let ((net4 (random-ipv4-network))
            (net6 (random-ipv6-network)))
        (is (ip= net4 net4))
-       (is (ip-equal (netaddr::->ip-range net4) net4))
-       (is (ip-equal net4 (netaddr::->ip-range net4)))
+       (is (ip-equalp (netaddr::->ip-range net4) net4))
+       (is (ip-equalp net4 (netaddr::->ip-range net4)))
 
        (is (ip= net6 net6))
-       (is (ip-equal (netaddr::->ip-range net6) net6))
-       (is (ip-equal net6 (netaddr::->ip-range net6)))
+       (is (ip-equalp (netaddr::->ip-range net6) net6))
+       (is (ip-equalp net6 (netaddr::->ip-range net6)))
 
-       (is (ip= s1 s2))
+       (is (ip-equalp s1 s2))
        (add! s1 net4)
        (add! s1 net6)
        (add! s2 (netaddr::->ip-range net4))
@@ -287,7 +287,7 @@
   (let* ((s (make-ip-set #I("0.0.0.0/24" "1.1.1.1"))))
     (loop for x upto 255 do
       (is (= 3 (length (slot-value (add s (make-ip-address x)) 'set))))
-      (is (ip= s (make-ip-set #I("0.0.0.0/24" "1.1.1.1")))))))
+      (is (ip-equalp s (make-ip-set #I("0.0.0.0/24" "1.1.1.1")))))))
 
 (test addnew
   (let* ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1")))
