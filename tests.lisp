@@ -411,4 +411,7 @@
   (is (not (private? #I("172.32.0.0")))))
 
 (test reserved?
-  )
+  (is (reserved? #I("0.0.0.0")))
+  (is (reserved? #I("192.0.2.0")))
+  (is (reserved? #I("255.255.255.255")))
+  (is (reserved? #I("233.252.0.255"))))
