@@ -318,7 +318,7 @@
   (ip-equal ip+1 ip+2))
 
 (defgeneric ip-equalp (ip+1 ip+2)
-  (:documentation "Returns T if IP+1 and IP+2 represent the same underlying IP address(es), and are the same version of IP, or otherwise NIL. IP-RANGEs or IP-NETWORKs that contain a single IP will be IP-EQUALP to the IP-ADDRESS, e.g., ")
+  (:documentation "Returns T if IP+1 and IP+2 represent the same underlying IP address(es), and are the same version of IP, or otherwise NIL. IP-RANGEs or IP-NETWORKs that contain a single IP will be IP-EQUALP to the IP-ADDRESS. See Equality in the README for details.")
   (:method ((ip ip-address) (pair ip-pair))
     (and (= (int ip) (int (first-ip pair)) (int (last-ip pair)))
          (= (version ip) (version pair))))
