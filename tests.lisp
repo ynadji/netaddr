@@ -1,4 +1,3 @@
-(in-package :cl-user)
 (defpackage netaddr/tests
   (:use #:cl #:netaddr)
   (:import-from #:fiveam

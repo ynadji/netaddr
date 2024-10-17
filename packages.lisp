@@ -1,4 +1,3 @@
-(in-package :cl-user)
 (defpackage :netaddr
   (:use :cl)
   (:local-nicknames (:ax :alexandria))
