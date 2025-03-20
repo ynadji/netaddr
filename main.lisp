@@ -76,10 +76,10 @@
   (make-instance 'ip-network :str str))
 
 (defmethod initialize-instance :after ((net ip-network) &key)
-  (destructuring-bind (ip mask) (str:split "/" (str net))
-    (let ((mask (parse-integer mask))
+  (destructuring-bind (ip mask) (split-sequence #\/ (str net))
+    (let* ((mask (parse-integer mask))
           (first-ip (make-ip-address ip))
-          (last-ip (make-ip-address ip)))
+          (last-ip (shallow-copy-object first-ip)))
       (mask-ip! first-ip mask :lower)
       (mask-ip! last-ip mask :upper)
       (setf (slot-value net 'version) (version first-ip))
@@ -125,7 +125,7 @@
   "Given a string for an IP-LIKE, infer the concrete type and return an object."
   (check-type ip-like-str string)
   (cond ((find #\/ ip-like-str) (make-ip-network ip-like-str))
-        ((find #\- ip-like-str) (apply #'make-ip-range (str:split "-" ip-like-str)))
+        ((find #\- ip-like-str) (apply #'make-ip-range (split-sequence #\- ip-like-str)))
         (t (make-ip-address ip-like-str))))
 
 (defclass ip-set (ip+)
@@ -176,14 +176,14 @@
     (6 (ip-int-to-str-v6 int))))
 
 (defun expand-ipv6-addr-to-parts (str)
-  (let* ((parts (str:split ":" str))
+  (let* ((parts (split-sequence #\: str))
          (num-non-empties (count "" parts :test-not #'equal))
          (zeroes (loop repeat (- 8 num-non-empties) collect "0")))
     (mapcar (lambda (x) (parse-integer x :radix 16))
             (remove "" (ax:flatten (substitute zeroes "" parts :test #'equal :count 1)) :test #'equal))))
 
 (defun remove-leading-zeroes (str)
-  (let ((parts (str:split ":" str)))
+  (let ((parts (split-sequence #\: str)))
     (str:join ":"
      (loop for part in parts
            collect (cl-ppcre:regex-replace "^0+(.+)$" part "\\1")))))
@@ -203,7 +203,7 @@
 (defun compress-ipv6-str (str)
   (let* ((str (remove-leading-zeroes str))
          (colon-list (list ":"))
-         (parts (str:split ":" str)))
+         (parts (split-sequence #\: str)))
     (multiple-value-bind (len pos) (largest-run "0" parts)
       (let* ((end (+ len pos))
              (parts (if (< len 2)
@@ -228,7 +228,7 @@
   (ipv6-parts-to-int (expand-ipv6-addr-to-parts str)))
 
 (defun ipv4-str-to-int (str)
-  (let ((octets (mapcar #'parse-integer (str:split "." str))))
+  (let ((octets (mapcar #'parse-integer (split-sequence #\. str))))
     (loop for x from 24 downto 0 by 8
           for octet in octets sum (ash octet x))))
 
@@ -240,11 +240,11 @@
 (defun mask-ip! (ip mask &optional (upper-or-lower :upper))
   (let ((max-bits (ecase (version ip) (4 32) (6 128))))
     (with-slots (int version) ip
-     (ecase upper-or-lower
-       (:lower (setf (slot-value ip 'int)
-                     (logand int (ash (integer-from-n-bits mask) (- max-bits mask)))))
-       (:upper (setf (slot-value ip 'int)
-                     (logior int (integer-from-n-bits (- max-bits mask))))))
+      (ecase upper-or-lower
+        (:lower (setf (slot-value ip 'int)
+                      (logand int (ash (integer-from-n-bits mask) (- max-bits mask)))))
+        (:upper (setf (slot-value ip 'int)
+                      (logior int (integer-from-n-bits (- max-bits mask))))))
       (setf (slot-value ip 'str) (ip-int-to-str (int ip) version))
       ip)))
 
