@@ -22,6 +22,7 @@
            :ip-equalp
            :int
            :str
+           :version
            :first-ip
            :last-ip
            :size
