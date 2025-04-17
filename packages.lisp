@@ -33,4 +33,6 @@
            :enable-ip-syntax
            :public?
            :private?
-           :reserved?))
+           :reserved?
+           :multicast?
+           :route-type))

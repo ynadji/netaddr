@@ -41,6 +41,7 @@
 (defvar *non-routable-exceptions* (ip-set-union *ipv4-not-globally-reachable-exceptions*
                                                 *ipv6-not-globally-reachable-exceptions*))
 (defvar *reserved* (ip-set-union *ipv4-reserved* *ipv6-reserved*))
+(defvar *multicast* (ip-set-union *ipv4-multicast* *ipv6-multicast*))
 
 ;; Lookup functions
 (defun private? (ip)
@@ -59,3 +60,14 @@
   "Returns T if IP is a reserved IP address, otherwise NIL."
   (check-type ip ip-like)
   (contains? *reserved* ip))
+
+(defun multicast? (ip)
+  (check-type ip ip-like)
+  (contains? *multicast* ip))
+
+(defun route-type (ip)
+  (cond ((private? ip) :private)
+        ((reserved? ip) :reserved)
+        ((multicast? ip) :multicast)
+        ((public? ip) :public)
+        (t :other)))
