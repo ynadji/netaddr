@@ -1,6 +1,6 @@
 (asdf:defsystem netaddr
   :serial t
-  :description "IP and CIDR manipulation library"
+  :description "A library for manipulating IP addresses, subnets, ranges, and sets."
   :author "Yacin Nadji <yacin@defmacro.cc>"
   :license "MIT"
   :depends-on ("str" "uiop" "alexandria" "cl-ppcre" "computable-reals" "closer-mop" "split-sequence")
