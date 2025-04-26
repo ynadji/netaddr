@@ -62,10 +62,12 @@
   (contains? *reserved* ip))
 
 (defun multicast? (ip)
+  "Returns T if IP is an IP designated for multicast, otherwise NIL."
   (check-type ip ip-like)
   (contains? *multicast* ip))
 
 (defun route-type (ip)
+  "Returns one of (:PRIVATE :RESERVED :MULTICAST :PUBLIC :OTHER) based on RFC defined IP usage."
   (cond ((private? ip) :private)
         ((reserved? ip) :reserved)
         ((multicast? ip) :multicast)

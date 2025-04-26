@@ -3,6 +3,7 @@
   :description "A library for manipulating IP addresses, subnets, ranges, and sets."
   :author "Yacin Nadji <yacin@defmacro.cc>"
   :license "MIT"
+  :version "1.0.0"
   :depends-on ("str" "uiop" "alexandria" "cl-ppcre" "computable-reals" "closer-mop" "split-sequence")
   :components ((:file "packages")
                (:file "main")
