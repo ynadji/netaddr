@@ -1,5 +1,19 @@
 (in-package :netaddr)
 
+(declaim (inline split-char))
+(defun split-char (char string)
+  "Split STRING on every occurrence of CHAR, returning a list of substrings.
+Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
+  (declare (character char)
+           (optimize (speed 3)))
+  (let ((result '())
+        (start 0))
+    (declare (simple-string string) (fixnum start))
+    (loop for pos = (position char string :start start)
+          do (push (subseq string start (or pos (length string))) result)
+          while pos do (setf start (1+ (the fixnum pos))))
+    (nreverse result)))
+
 ;; Needed to bump this to ensure I can compute enough bits in RANGE->CIDR for
 ;; very large IPv6 integers.
 (setf cr:*creal-tolerance* 120)
@@ -96,7 +110,7 @@
 
 (defmethod initialize-instance :after ((net ip-network) &key)
   (when (slot-boundp net 'str)
-    (destructuring-bind (ip mask) (split-sequence #\/ (str net))
+    (destructuring-bind (ip mask) (split-char #\/ (str net))
       (let* ((mask (parse-integer mask))
              (first-ip (make-ip-address ip)))
         (setf (slot-value net 'version) (version first-ip))
@@ -147,7 +161,7 @@
   "Given a string for an IP-LIKE, infer the concrete type and return an object."
   (check-type ip-like-str string)
   (cond ((find #\/ ip-like-str) (make-ip-network ip-like-str))
-        ((find #\- ip-like-str) (apply #'make-ip-range (split-sequence #\- ip-like-str)))
+        ((find #\- ip-like-str) (apply #'make-ip-range (split-char #\- ip-like-str)))
         (t (make-ip-address ip-like-str))))
 
 (defclass ip-set (ip+)
@@ -201,14 +215,14 @@
     (6 (ip-int-to-str-v6 int))))
 
 (defun expand-ipv6-addr-to-parts (str)
-  (let* ((parts (split-sequence #\: str))
+  (let* ((parts (split-char #\: str))
          (num-non-empties (count "" parts :test-not #'equal))
          (zeroes (loop repeat (- 8 num-non-empties) collect "0")))
     (mapcar (lambda (x) (parse-integer x :radix 16))
             (remove "" (ax:flatten (substitute zeroes "" parts :test #'equal :count 1)) :test #'equal))))
 
 (defun remove-leading-zeroes (str)
-  (let ((parts (split-sequence #\: str)))
+  (let ((parts (split-char #\: str)))
     (join ":"
      (loop for part in parts
            collect (cl-ppcre:regex-replace "^0+(.+)$" part "\\1")))))
@@ -228,7 +242,7 @@
 (defun compress-ipv6-str (str)
   (let* ((str (remove-leading-zeroes str))
          (colon-list (list ":"))
-         (parts (split-sequence #\: str)))
+         (parts (split-char #\: str)))
     (multiple-value-bind (len pos) (largest-run "0" parts)
       (let* ((end (+ len pos))
              (parts (if (< len 2)
@@ -253,7 +267,7 @@
   (ipv6-parts-to-int (expand-ipv6-addr-to-parts str)))
 
 (defun ipv4-str-to-int (str)
-  (let ((octets (mapcar #'parse-integer (split-sequence #\. str))))
+  (let ((octets (mapcar #'parse-integer (split-char #\. str))))
     (loop for x from 24 downto 0 by 8
           for octet in octets sum (ash octet x))))
 
