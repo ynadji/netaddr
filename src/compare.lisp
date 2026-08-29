@@ -71,8 +71,8 @@
 
 (defun compare (ip-like-1 ip-like-2)
   ;; Explicitly make v4 always less than v6 so when we sort we are consistent
-  ;; when two IPs have the same value but different versions, e.g., #I("::") vs.
-  ;; #I("0.0.0.0").
+  ;; when two IPs have the same value but different versions, e.g., #i:: vs.
+  ;; #i0.0.0.0.
   (check-type ip-like-1 ip-like)
   (check-type ip-like-2 ip-like)
   (if (= (version ip-like-1) (version ip-like-2))

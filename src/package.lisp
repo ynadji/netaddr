@@ -4,6 +4,7 @@
            :make-ip-network
            :make-ip-range
            :make-ip-set
+           :make-ip-like
            :add
            :add!
            :addnew

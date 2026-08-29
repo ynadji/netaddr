@@ -5,7 +5,7 @@ subnets, ranges, and sets. It is inspired by its namesake library in Python,
 [netaddr](https://github.com/netaddr/netaddr). NETADDR supports/provides:
 
 * IPv4 and IPv6 addresses, subnets, and ranges.
-* Shorthand syntax for the above with a reader macro `#I`. See the [IP
+* Shorthand syntax for the above with a reader macro `#i`. See the [IP
   Syntax](#IP-syntax) section for details.
 * Helper lookup functions for reserved space, e.g., `PRIVATE?`, `RESERVED?`, and
   `PUBLIC?`.
@@ -41,7 +41,7 @@ subnets, ranges, and sets. It is inspired by its namesake library in Python,
 
 Users of this library will only instantiate the leaf classes in the tree above,
 using their respective `MAKE-*` functions, or in the case of the three that
-inherit from `IP-LIKE`, the short-hand `#I` notation. `IP-SET`s are comprised of
+inherit from `IP-LIKE`, the short-hand `#i` notation. `IP-SET`s are comprised of
 a set of `IP-LIKE`s. Most operations will expect either `IP-LIKE`s as arguments
 and/or `IP+`s. For example, `CONTAINS?` takes an `IP+` as its first argument and
 an `IP-LIKE` as its second argument because:
@@ -74,19 +74,19 @@ the latter allows comparisons across all leaf classes described in the [Class
 Hierarchy](#Class-Hierarchy). For example:
 
 ```
-NETADDR> (ip-equal #I("1.1.1.1") #I("1.1.1.1/32"))
+NETADDR> (ip-equal #i1.1.1.1 #i1.1.1.1/32)
 NIL
-NETADDR> (ip-equalp #I("1.1.1.1") #I("1.1.1.1/32"))
+NETADDR> (ip-equalp #i1.1.1.1 #i1.1.1.1/32)
 T
-NETADDR> (ip-equalp #I("1.1.1.1") #I("1.1.1.1/31"))
+NETADDR> (ip-equalp #i1.1.1.1 #i1.1.1.1/31)
 NIL
-NETADDR> (ip-equal #I("1.0.0.0/8") #I("1.0.0.0-1.255.255.255"))
+NETADDR> (ip-equal #i1.0.0.0/8 #i1.0.0.0-1.255.255.255)
 NIL
-NETADDR> (ip-equalp #I("1.0.0.0/8") #I("1.0.0.0-1.255.255.255"))
+NETADDR> (ip-equalp #i1.0.0.0/8 #i1.0.0.0-1.255.255.255)
 T
-NETADDR> (ip-equal (make-ip-set (list #I("1.1.1.1"))) (make-ip-set (list #I("1.1.1.1/32"))))
+NETADDR> (ip-equal (make-ip-set #i(1.1.1.1)) (make-ip-set #i(1.1.1.1/32)))
 NIL
-NETADDR> (ip-equalp (make-ip-set (list #I("1.1.1.1"))) (make-ip-set (list #I("1.1.1.1/32"))))
+NETADDR> (ip-equalp (make-ip-set #i(1.1.1.1)) (make-ip-set #i(1.1.1.1/32)))
 T
 ```
 
@@ -99,22 +99,25 @@ and `IP-RANGE`s, you'll want to use `IP-EQUALP`.
 
 ## IP Syntax
 
-NETADDR provides a shorthand syntax for defining `IP-LIKE`s from strings with
-the reader macro `#I` that can be enabled by first calling `ENABLE-IP-SYNTAX`.
-If a single argument is provided, a single object is returned. If multiple
-arguments are provided, a list of objects is returned. Example usage is shown
-below:
+NETADDR provides a shorthand syntax for writing `IP-LIKE`s with the reader
+macro `#i`, enabled by calling `ENABLE-IP-SYNTAX`. An address, network, or
+range written directly after `#i` reads as a single object; a parenthesized,
+whitespace-separated list of them reads as a list of objects. An element may
+also be a string, or `,FORM` to use the string that `FORM` evaluates to at run
+time. Example usage is shown below:
 
 ```
-NETADDR> #I("1.2.3.4")
+NETADDR> #i1.2.3.4
 #<IP-ADDRESS 1.2.3.4>
-NETADDR> #I("192.168.1.0/24")
+NETADDR> #i192.168.1.0/24
 #<IP-NETWORK 192.168.1.0/24>
-NETADDR> #I("::-ffff::")
+NETADDR> #i::-ffff::
 #<IP-RANGE ::-ffff::>
-NETADDR> #I("0.0.0.0" "1.1.1.1")
+NETADDR> #i(0.0.0.0 1.1.1.1)
 (#<IP-ADDRESS 0.0.0.0> #<IP-ADDRESS 1.1.1.1>)
 NETADDR> (multiple-value-bind (x y z) (values "1.1.1.1" "::/96" "10.20.30.40-11.20.30.40")
-           #I(x y z))
+           #i(,x ,y ,z))
 (#<IP-ADDRESS 1.1.1.1> #<IP-NETWORK ::/96> #<IP-RANGE 10.20.30.40-11.20.30.40>)
+NETADDR> (let ((prefix "10.0.0.0")) #i,(format nil "~a/8" prefix))
+#<IP-NETWORK 10.0.0.0/8>
 ```
