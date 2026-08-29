@@ -4,7 +4,7 @@
   :author "Yacin Nadji <yacin@defmacro.cc>"
   :license "MIT"
   :version "1.0.0"
-  :depends-on ("uiop" "cl-ppcre" "computable-reals" "closer-mop")
+  :depends-on ("uiop" "cl-ppcre" "closer-mop")
   :components ((:file "packages")
                (:file "main")
                (:file "syntax")

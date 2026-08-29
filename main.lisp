@@ -14,10 +14,6 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
           while pos do (setf start (1+ (the fixnum pos))))
     (nreverse result)))
 
-;; Needed to bump this to ensure I can compute enough bits in RANGE->CIDR for
-;; very large IPv6 integers.
-(setf cr:*creal-tolerance* 120)
-
 ;;;; Class definitions and constructors.
 
 (defclass ip+ () ())
@@ -306,21 +302,17 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
 ;; Might not be super efficient from allocations and recursiveness. Particularly
 ;; for poorly CIDR-aligned IPv6 ranges. Lots of CONSing.
 (defun range->cidrs (ip-range)
-  (flet ((get-bits (first-int last-int version)
-           (let ((diff+1 (1+ (- last-int first-int))))
-             (ecase version
-               (4 (floor (log (coerce diff+1 'double-float) 2)))
-               (6 (multiple-value-bind (q r) (cr:floor-r (cr:log-r diff+1 2))
-                    ;; NB: We only need 1 bit of information (was the remainder
-                    ;; 0 or not-zero.
-                    (values q (cr:rational-approx-r r 1))))))))
+  (flet ((get-bits (first-int last-int)
+           ;; Returns FLOOR(LOG2 N) and a second value that is 0 iff N is an exact power of two.
+           (let* ((diff+1 (1+ (- last-int first-int)))
+                  (bits (1- (integer-length diff+1))))
+             (values bits (if (= diff+1 (ash 1 bits)) 0 1)))))
     (let ((first-str (str (first-ip ip-range)))
           (first-int (int (first-ip ip-range)))
           (last-str (str (last-ip ip-range)))
           (last-int (int (last-ip ip-range)))
-          (version (version (first-ip ip-range)))
           (max-bits (ecase (version (first-ip ip-range)) (4 32) (6 128))))
-      (multiple-value-bind (bits remainder) (get-bits first-int last-int version)
+      (multiple-value-bind (bits remainder) (get-bits first-int last-int)
         (let ((net (make-ip-network (format nil "~a/~a" first-str (- max-bits bits)))))
           (if (= remainder 0)
               (list net)

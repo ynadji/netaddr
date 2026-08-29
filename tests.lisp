@@ -132,7 +132,16 @@
   (is (= (size #I("::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe"))
          (apply #'+ (mapcar #'size (netaddr::range->cidrs #I("::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe"))))))
   (is (= (size #I("0.0.0.0-255.255.255.254"))
-         (apply #'+ (mapcar #'size (netaddr::range->cidrs #I("0.0.0.0-255.255.255.254")))))))
+         (apply #'+ (mapcar #'size (netaddr::range->cidrs #I("0.0.0.0-255.255.255.254"))))))
+  (dolist (range (list #I("2001:db8::-2001:db8::8")
+                       #I("2001:db8::-2001:db8::10")
+                       #I("2001:db8::-2001:db8::1:0")
+                       #I("10.0.0.0-10.0.0.8")
+                       #I("10.0.0.0-10.0.0.16")))
+    (let ((cidrs (netaddr::range->cidrs range)))
+      (is (= (size range) (apply #'+ (mapcar #'size cidrs))))
+      (is (ip-equal (first-ip range) (first-ip (first cidrs))))
+      (is (ip-equal (last-ip range) (last-ip (car (last cidrs))))))))
 
 (test ->ip-range
   (loop repeat 100 do
