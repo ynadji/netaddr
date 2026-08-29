@@ -29,6 +29,11 @@
 
 (test error-checking
   (is (null (ignore-errors (make-ip-address "not-and-ip-address"))))
+  (dolist (str '("" ":" ":::" "1:::2" "1::2::3" "1:2:3:4:5:6:7:8:9" "1:2:3:4:5:6:7"
+                 "12345::" "-1::" " ::1" "::1 " "g::" "::ffff:1.2.3.4" "fe80::1%eth0"
+                 "256.0.0.0" "01.0.0.0" "1.2.3" "1.2.3.4.5" "1..2.3" ".1.2.3" "1.2.3."
+                 "1.42.250.2113" "+1.2.3.4" "1.2.3.4 "))
+    (is (null (ignore-errors (make-ip-address str)))))
   (is (null (ignore-errors (make-instance 'ip-address))))
   (is (null (ignore-errors (make-ip-address nil))))
   (is (null (ignore-errors (make-ip-address -1))))

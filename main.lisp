@@ -34,14 +34,15 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
 (defmethod initialize-instance :after ((ip ip-address) &key)
   (cond ((slot-boundp ip 'str)
          (with-slots (str) ip
-            (cond ((ipv4-str? str)
-                   (setf (slot-value ip 'version) 4)
-                   (setf (slot-value ip 'int) (ipv4-str-to-int str)))
-                  ((ipv6-str? str)
-                   (setf (slot-value ip 'str) (compress-ipv6-str str))
-                   (setf (slot-value ip 'version) 6)
-                   (setf (slot-value ip 'int) (ipv6-str-to-int str)))
-                  (t (error "~a is not an IP address string" str)))))
+           (let (int)
+             (cond ((setf int (parse-ipv4 str))
+                    (setf (slot-value ip 'version) 4
+                          (slot-value ip 'int) int))
+                   ((setf int (parse-ipv6 str))
+                    (setf (slot-value ip 'str) (compress-ipv6-str str)
+                          (slot-value ip 'version) 6
+                          (slot-value ip 'int) int))
+                   (t (error "~a is not an IP address string" str))))))
         ((slot-boundp ip 'int)
          (with-slots (int) ip
            (unless (<= 0 int (1- (expt 2 128)))
@@ -196,12 +197,71 @@ run on the copy."
 
 ;;;; String and integer manipulation and interop.
 
-;; Grabbed from
-;; https://stackoverflow.com/questions/5284147/validating-ipv4-addresses-with-regexp
-;; and
-;; https://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
-(defun ipv4-str? (str) (cl-ppcre:scan "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\.?\\b){4}$" str))
-(defun ipv6-str? (str) (cl-ppcre:scan "(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))" str))
+(defun parse-ipv4 (str)
+  "If STR is a dotted-quad IPv4 address, return its integer value, otherwise NIL.
+Octets must be decimal, in [0, 255], and have no leading zeroes."
+  (declare (simple-string str) (optimize speed))
+  (let ((int 0)
+        (start 0))
+    (declare ((unsigned-byte 32) int) (fixnum start))
+    (dotimes (i 4 int)
+      (let* ((end (if (= i 3) (length str) (or (position #\. str :start start) (return nil))))
+             (digits (- end start)))
+        (declare (fixnum end digits))
+        (unless (and (<= 1 digits 3)
+                     (loop for j from start below end always (digit-char-p (schar str j)))
+                     (or (= digits 1) (char/= (schar str start) #\0)))
+          (return nil))
+        (let ((octet (parse-integer str :start start :end end)))
+          (declare ((integer 0 999) octet))
+          (when (> octet 255) (return nil))
+          (setf int (logior int (ash octet (- 24 (* 8 i))))
+                start (1+ end)))))))
+
+(defun parse-ipv6-groups (str start end)
+  "Parse the colon-separated 1-4 digit hex groups in STR between START and END.
+Returns the list of group values, or :INVALID if any group is malformed. An
+empty region yields NIL."
+  (declare (simple-string str) (fixnum start end) (optimize speed))
+  (if (= start end)
+      '()
+      (loop with groups = '()
+            for group-start fixnum = start then (1+ group-end)
+            for group-end fixnum = (or (position #\: str :start group-start :end end) end)
+            do (unless (and (<= 1 (- group-end group-start) 4)
+                            (loop for j from group-start below group-end
+                                  always (digit-char-p (schar str j) 16)))
+                 (return :invalid))
+               (push (parse-integer str :start group-start :end group-end :radix 16) groups)
+            until (= group-end end)
+            finally (return (nreverse groups)))))
+
+(defun parse-ipv6 (str)
+  "If STR is a colon-separated hexadecimal IPv6 address (with at most one \"::\"),
+return its integer value, otherwise NIL. Zone IDs and embedded IPv4 addresses
+are not supported."
+  ;; NB: The result is a 128-bit integer, so the arithmetic here is bignum
+  ;; arithmetic by nature and SBCL's efficiency notes about it are noise.
+  (declare (simple-string str) (optimize speed)
+           #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
+  (let* ((len (length str))
+         (dbl (search "::" str)))
+    (flet ((groups->int (groups)
+             (loop with int = 0
+                   for g fixnum in groups
+                   do (setf int (logior (ash int 16) g))
+                   finally (return int))))
+      (if dbl
+          (let ((left (parse-ipv6-groups str 0 dbl))
+                (right (parse-ipv6-groups str (+ dbl 2) len)))
+            (unless (or (eq left :invalid)
+                        (eq right :invalid)
+                        (> (+ (length left) (length right)) 7))
+              (logior (ash (groups->int left) (* 16 (- 8 (length left))))
+                      (groups->int right))))
+          (let ((groups (parse-ipv6-groups str 0 len)))
+            (unless (or (eq groups :invalid) (/= (length groups) 8))
+              (groups->int groups)))))))
 
 (defun join (separator strings)
   (format nil (concatenate 'string "~{~A~^" separator "~}") strings))
@@ -220,20 +280,13 @@ run on the copy."
     (4 (ip-int-to-str-v4 int))
     (6 (ip-int-to-str-v6 int))))
 
-(defun expand-ipv6-addr-to-parts (str)
-  (let* ((parts (split-char #\: str))
-         (num-non-empties (count "" parts :test-not #'equal))
-         (zeroes (loop repeat (- 8 num-non-empties) collect "0")))
-    (mapcar (lambda (x) (parse-integer x :radix 16))
-            (remove "" (loop for part in (substitute zeroes "" parts :test #'equal :count 1)
-                             if (listp part) append part else collect part)
-                    :test #'equal))))
-
 (defun remove-leading-zeroes (str)
-  (let ((parts (split-char #\: str)))
-    (join ":"
-     (loop for part in parts
-           collect (cl-ppcre:regex-replace "^0+(.+)$" part "\\1")))))
+  (join ":"
+        (loop for part in (split-char #\: str)
+              collect (let ((trimmed (string-left-trim "0" part)))
+                        (if (and (string= trimmed "") (string/= part ""))
+                            "0"
+                            trimmed)))))
 
 (defun largest-run (item sequence)
   (loop for i from 0 for x in sequence
@@ -266,18 +319,6 @@ run on the copy."
                     (< (+ pos len) 8)) ; Run of 0s was in the middle
                (join ":" (nsubstitute "" ":" parts :test #'string=)))
               (t (join ":" parts)))))))
-
-(defun ipv6-parts-to-int (parts)
-  (loop for x from 112 downto 0 by 16
-        for part in parts sum (ash part x)))
-
-(defun ipv6-str-to-int (str)
-  (ipv6-parts-to-int (expand-ipv6-addr-to-parts str)))
-
-(defun ipv4-str-to-int (str)
-  (let ((octets (mapcar #'parse-integer (split-char #\. str))))
-    (loop for x from 24 downto 0 by 8
-          for octet in octets sum (ash octet x))))
 
 (defun integer-from-n-bits (n)
   (loop repeat n with int = 0
