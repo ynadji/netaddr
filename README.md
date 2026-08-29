@@ -2,7 +2,8 @@
 
 NETADDR is a zero dependency Common Lisp library for manipulating IP addresses,
 subnets, ranges, and sets. It is inspired by its namesake library in Python,
-[netaddr](https://github.com/netaddr/netaddr). NETADDR supports/provides:
+[netaddr](https://github.com/netaddr/netaddr). Confirmed to work on SBCL, ECL,
+and LispWorks. NETADDR supports/provides:
 
 * IPv4 and IPv6 addresses, subnets, and ranges.
 * Shorthand syntax for the above with a reader macro `#i`. See the [IP
@@ -121,3 +122,11 @@ NETADDR> (multiple-value-bind (x y z) (values "1.1.1.1" "::/96" "10.20.30.40-11.
 NETADDR> (let ((prefix "10.0.0.0")) #i,(format nil "~a/8" prefix))
 #<IP-NETWORK 10.0.0.0/8>
 ```
+
+`ENABLE-IP-SYNTAX` copies the current readtable and adds `#i` to it, so other
+reader extensions you have enabled are kept; within a file being compiled or
+loaded the change is local to that file, and `DISABLE-IP-SYNTAX` restores the
+previous readtable. To use the syntax without changing `*READTABLE*`, bind it
+to `*IP-SYNTAX-READTABLE*`, or install `IP-READER` as the `#i` dispatch macro
+in a readtable of your own (for example with `named-readtables`'
+`:dispatch-macro-char`).

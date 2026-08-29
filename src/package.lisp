@@ -33,6 +33,9 @@
            :ip-set-difference
            :ip-set-symmetric-difference
            :enable-ip-syntax
+           :disable-ip-syntax
+           :ip-reader
+           :*ip-syntax-readtable*
            :public?
            :private?
            :reserved?

@@ -577,3 +577,22 @@
   (fiveam:signals error (eval (read-from-string "#inot-an-ip"))))
 
 (defun ip-address-p (x) (typep x 'netaddr::ip-address))
+
+(test readtables
+  ;; A bound *IP-SYNTAX-READTABLE* reads #i without touching the current one.
+  (let ((*readtable* *ip-syntax-readtable*))
+    (is (ip= #i1.2.3.4 (eval (read-from-string "#i1.2.3.4")))))
+  ;; IP-READER can be installed into any readtable.
+  (let ((*readtable* (copy-readtable nil)))
+    (set-dispatch-macro-character #\# #\i #'ip-reader)
+    (is (ip= #i::1 (eval (read-from-string "#I::1")))))
+  ;; ENABLE/DISABLE nest and restore the previous readtable.
+  (let* ((*readtable* (copy-readtable nil))
+         (before *readtable*))
+    (fiveam:signals error (read-from-string "#i1.2.3.4"))
+    (enable-ip-syntax)
+    (is (not (eq before *readtable*)))
+    (is (ip= #i1.2.3.4 (eval (read-from-string "#i1.2.3.4"))))
+    (disable-ip-syntax)
+    (is (eq before *readtable*))
+    (fiveam:signals error (read-from-string "#i1.2.3.4"))))
