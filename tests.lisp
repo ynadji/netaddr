@@ -136,12 +136,27 @@
   (dolist (range (list #I("2001:db8::-2001:db8::8")
                        #I("2001:db8::-2001:db8::10")
                        #I("2001:db8::-2001:db8::1:0")
+                       #I("2001:db8::1-2001:db8::9")
+                       #I("2001:db8::1-2001:db8::1")
+                       #I("::-::9")
+                       #I("::1-::9")
                        #I("10.0.0.0-10.0.0.8")
-                       #I("10.0.0.0-10.0.0.16")))
+                       #I("10.0.0.0-10.0.0.16")
+                       #I("10.0.0.1-10.0.0.9")
+                       #I("10.0.0.255-10.0.1.0")))
     (let ((cidrs (netaddr::range->cidrs range)))
       (is (= (size range) (apply #'+ (mapcar #'size cidrs))))
       (is (ip-equal (first-ip range) (first-ip (first cidrs))))
-      (is (ip-equal (last-ip range) (last-ip (car (last cidrs))))))))
+      (is (ip-equal (last-ip range) (last-ip (car (last cidrs)))))
+      ;; Contiguous and non-overlapping.
+      (is (loop for (a b) on cidrs while b
+                always (= (1+ (int (last-ip a))) (int (first-ip b)))))
+      (is (every (lambda (net) (= (version range) (version net))) cidrs))))
+  (is (equal '("10.0.0.1/32" "10.0.0.2/31" "10.0.0.4/30" "10.0.0.8/31")
+             (mapcar #'str (netaddr::range->cidrs #I("10.0.0.1-10.0.0.9")))))
+  (is (equal '("::/125" "::8/127")
+             (mapcar #'str (netaddr::range->cidrs #I("::-::9")))))
+  (is (= 6 (version #I("::-::9")))))
 
 (test ->ip-range
   (loop repeat 100 do

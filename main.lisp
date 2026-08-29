@@ -27,7 +27,7 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
 (defclass ip-address (ip-like)
   ((str :initarg :str :reader str
         :documentation "String representation of the IP-ADDRESS.")
-   (version :reader version)
+   (version :initarg :version :reader version)
    (int :initarg :int :reader int
         :documentation "Integer representation of the IP-ADDRESS.")))
 
@@ -46,12 +46,15 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
          (with-slots (int) ip
            (unless (<= 0 int (1- (expt 2 128)))
              (error "INT is not 0 <= ~a <= (1- (expt 2 128))" int))
-           ;; TODO: cleaner way to do this maybe?
-           (if (< int (expt 2 32))
-               (progn (setf (slot-value ip 'version) 4)
-                      (setf (slot-value ip 'str) (ip-int-to-str int)))
-               (progn (setf (slot-value ip 'version) 6)
-                      (setf (slot-value ip 'str) (ip-int-to-str int 6))))))
+           ;; An explicit :VERSION lets callers build small IPv6 addresses (e.g., ::1) from integers, which would
+           ;; otherwise be inferred to be IPv4.
+           (let ((version (if (slot-boundp ip 'version)
+                              (version ip)
+                              (if (< int (expt 2 32)) 4 6))))
+             (when (and (= version 4) (>= int (expt 2 32)))
+               (error "INT ~a is too large for an IPv4 address" int))
+             (setf (slot-value ip 'version) version
+                   (slot-value ip 'str) (ip-int-to-str int version)))))
         (t (error "Must specify either STR or INT."))))
 
 (defgeneric make-ip-address (str-or-int)
@@ -102,6 +105,7 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
   (setf (slot-value net 'first-ip) first-ip
         (slot-value net 'last-ip) last-ip
         (slot-value net 'mask) mask
+        (slot-value net 'version) (version first-ip)
         (slot-value net 'str) (format nil "~a/~a" (str first-ip) mask)))
 
 (defmethod initialize-instance :after ((net ip-network) &key)
@@ -109,7 +113,6 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
     (destructuring-bind (ip mask) (split-char #\/ (str net))
       (let* ((mask (parse-integer mask))
              (first-ip (make-ip-address ip)))
-        (setf (slot-value net 'version) (version first-ip))
         (multiple-value-bind (first-ip last-ip) (find-ip-range-from-mask first-ip mask)
           (set-network! net first-ip last-ip mask))))))
 
@@ -140,10 +143,10 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
   (when (< (int (last-ip range)) (int (first-ip range)))
     (error "FIRST-IP (~a) must be less than LAST-IP (~a)"
            (first-ip range) (last-ip range)))
-  (setf (slot-value range 'version)
-        (if (< (int (last-ip range)) (expt 2 32))
-            4
-            6)))
+  (unless (= (version (first-ip range)) (version (last-ip range)))
+    (error "FIRST-IP (~a) and LAST-IP (~a) must be the same IP version"
+           (first-ip range) (last-ip range)))
+  (setf (slot-value range 'version) (version (first-ip range))))
 
 (defun make-ip-range (first last)
   "Make an IP-RANGE object given two STRINGs or INTEGERs that represent valid IP addresses as expected by MAKE-IP-ADDRESS. LAST must be greater than or equal to FIRST."
@@ -299,26 +302,25 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
   (:method ((ip-like t))
     (check-type ip-like ip-like)))
 
-;; Might not be super efficient from allocations and recursiveness. Particularly
-;; for poorly CIDR-aligned IPv6 ranges. Lots of CONSing.
 (defun range->cidrs (ip-range)
-  (flet ((get-bits (first-int last-int)
-           ;; Returns FLOOR(LOG2 N) and a second value that is 0 iff N is an exact power of two.
-           (let* ((diff+1 (1+ (- last-int first-int)))
-                  (bits (1- (integer-length diff+1))))
-             (values bits (if (= diff+1 (ash 1 bits)) 0 1)))))
-    (let ((first-str (str (first-ip ip-range)))
-          (first-int (int (first-ip ip-range)))
-          (last-str (str (last-ip ip-range)))
-          (last-int (int (last-ip ip-range)))
-          (max-bits (ecase (version (first-ip ip-range)) (4 32) (6 128))))
-      (multiple-value-bind (bits remainder) (get-bits first-int last-int)
-        (let ((net (make-ip-network (format nil "~a/~a" first-str (- max-bits bits)))))
-          (if (= remainder 0)
-              (list net)
-              (cons net (range->cidrs (make-ip-range (str (make-instance 'ip-address
-                                                                         :int (1+ (int (last-ip net)))))
-                                                     last-str)))))))))
+  "Return the list of IP-NETWORKs that exactly cover IP-RANGE, in ascending order."
+  (let* ((version (version (first-ip ip-range)))
+         (max-bits (ecase version (4 32) (6 128)))
+         (first (int (first-ip ip-range)))
+         (last (int (last-ip ip-range))))
+    (loop while (<= first last)
+          collect (let* ((span (1+ (- last first)))
+                         ;; Largest block that both fits in the remaining span
+                         ;; and is aligned at FIRST (i.e., FIRST is a multiple
+                         ;; of its size).
+                         (bits (min (1- (integer-length span))
+                                    (if (zerop first)
+                                        max-bits
+                                        (1- (integer-length (logand first (- first)))))))
+                         (net (apply-mask! (make-instance 'ip-address :int first :version version)
+                                           (- max-bits bits))))
+                    (setf first (1+ (int (last-ip net))))
+                    net))))
 
 ;;;; Equality methods.
 
