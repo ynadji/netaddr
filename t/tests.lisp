@@ -454,3 +454,78 @@
   (is (reserved? #I("192.0.2.0")))
   (is (reserved? #I("255.255.255.255")))
   (is (reserved? #I("233.252.0.255"))))
+
+;;;; Coverage gaps.
+
+(test strict-subset?/strict-superset?
+  (is (netaddr::strict-subset? #I("10.0.0.1") #I("10.0.0.0/24")))
+  (is (netaddr::strict-superset? #I("10.0.0.0/24") #I("10.0.0.1")))
+  (is (not (netaddr::strict-subset? #I("10.0.0.0/24") #I("10.0.0.0/24"))))
+  (is (not (netaddr::strict-superset? #I("10.0.0.0/24") #I("10.0.0.0/24"))))
+  (is (not (netaddr::strict-subset? #I("10.0.0.0/24") #I("10.0.0.1")))))
+
+(test mixed-address/pair-methods
+  (is (not (disjoint? #I("10.0.0.1") #I("10.0.0.0/24"))))
+  (is (not (disjoint? #I("10.0.0.0/24") #I("10.0.0.1"))))
+  (is (disjoint? #I("10.0.1.1") #I("10.0.0.0/24")))
+  (is (contiguous? #I("10.0.1.0") #I("10.0.0.0/24")))
+  (is (contiguous? #I("10.0.0.0/24") #I("10.0.1.0")))
+  (is (not (contiguous? #I("10.0.0.1") #I("10.0.0.1"))))
+  (is (ip= #I("10.0.0.1") (netaddr::intersect #I("10.0.0.1") #I("10.0.0.1"))))
+  (is (null (netaddr::intersect #I("10.0.0.1") #I("10.0.0.2"))))
+  (is (ip= #I("10.0.0.1") (netaddr::intersect #I("10.0.0.0/24") #I("10.0.0.1"))))
+  (is (null (netaddr::intersect #I("10.0.0.0/24") #I("10.0.1.0/24")))))
+
+(test type-errors
+  (dolist (fn (list #'subset? #'superset? #'netaddr::strict-subset? #'netaddr::strict-superset? #'disjoint?
+                    #'contiguous? #'contains? #'netaddr::intersect))
+    (fiveam:signals type-error (funcall fn "10.0.0.1" #I("10.0.0.1")))
+    (fiveam:signals type-error (funcall fn #I("10.0.0.1") 42)))
+  (fiveam:signals type-error (size "10.0.0.1"))
+  (fiveam:signals error (make-ip-range "::1" "10.0.0.1"))
+  (fiveam:signals error (make-instance 'ip-address :int (expt 2 32) :version 4)))
+
+(test print-object
+  (is (search "10.0.0.1" (princ-to-string #I("10.0.0.1"))))
+  (is (search "10.0.0.0/24" (princ-to-string #I("10.0.0.0/24"))))
+  (is (search "10.0.0.1-10.0.0.9" (princ-to-string #I("10.0.0.1-10.0.0.9"))))
+  (is (search "(2)" (princ-to-string (make-ip-set #I("10.0.0.0/24" "::1"))))))
+
+(test shallow-copy-object
+  (dolist (ip-like #I("10.0.0.1" "10.0.0.0/24" "10.0.0.1-10.0.0.9"))
+    (let ((copy (netaddr::shallow-copy-object ip-like)))
+      (is (not (eq ip-like copy)))
+      (is (ip= ip-like copy)))))
+
+(test split-char
+  ;; Call through the function object so the out-of-line definition runs.
+  (let ((split #'netaddr::split-char))
+    (is (equal '("1" "2" "3") (funcall split #\. "1.2.3")))
+    (is (equal '("" "" "1") (funcall split #\: "::1")))
+    (is (equal '("abc") (funcall split #\. "abc")))
+    (is (equal '("") (funcall split #\. "")))))
+
+(test multicast?/route-type
+  (is (multicast? #I("224.0.0.1")))
+  (is (multicast? #I("ff02::1")))
+  (is (not (multicast? #I("8.8.8.8"))))
+  (is (eq :private (route-type #I("10.0.0.1"))))
+  (is (eq :reserved (route-type #I("127.0.0.1"))))
+  (is (eq :multicast (route-type #I("224.0.0.1"))))
+  (is (eq :public (route-type #I("8.8.8.8"))))
+  (is (eq :other (route-type #I("100.64.0.1")))))
+
+(test remaining-gaps
+  ;; SIZE of an IP-SET.
+  (is (= (+ 256 1) (size (make-ip-set #I("10.0.0.0/24" "::1")))))
+  ;; SUBTRACT where the subtrahend shares the last address.
+  (is (ip= #I("10.0.0.0-10.0.0.7") (first (netaddr::subtract #I("10.0.0.0/24") #I("10.0.0.8-10.0.0.255")))))
+  ;; Zero-argument set operations.
+  (is (zerop (size (ip-set-intersection))))
+  (is (zerop (size (ip-set-difference))))
+  ;; ADDNEW! of a disjoint element pushes it onto the set.
+  (is (= 2 (length (slot-value (addnew (make-ip-set (list #I("10.0.0.0/24"))) #I("192.168.0.1")) 'netaddr::set))))
+  ;; CHECK-TYPE fallbacks.
+  (fiveam:signals type-error (netaddr::->ip-range "10.0.0.1"))
+  (fiveam:signals type-error (ip-equal "10.0.0.1" #I("10.0.0.1")))
+  (fiveam:signals type-error (ip-equalp "10.0.0.1" #I("10.0.0.1"))))
