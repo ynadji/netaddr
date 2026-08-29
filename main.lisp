@@ -136,7 +136,7 @@
   (check-type set list)
   (dolist (set-element set)
     (check-type set-element ip-like))
-  (let ((s (make-instance 'ip-set :entries set)))
+  (let ((s (make-instance 'ip-set :entries (copy-list set))))
     (compact! s)))
 
 (defmethod print-object ((set ip-set) out)

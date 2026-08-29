@@ -300,7 +300,9 @@
 
 (test ip-set
   (let* ((s (make-ip-set #I("10.0.0.0/24" "1.1.1.1")))
-         (orig (netaddr::shallow-copy-object s)))
+         (orig (netaddr::shallow-copy-object s))
+         (networks (mapcar #'make-ip-network (list "10.0.0.0/24" "10.0.0.0/16")))
+         (networks-orig (copy-seq networks)))
     (is (ip= s orig))
     (is (contains? s #I("10.0.0.0/25")))
     (is (contains? s #I("1.1.1.1")))
@@ -322,7 +324,9 @@
                            (make-ip-set #I("::/0" "0.0.0.0")))))
     (is (ip= (make-ip-set #I("::/0" "0.0.0.0/0"))
              (ip-set-union (make-ip-set #I("0.0.0.0/0" "::"))
-                           (make-ip-set #I("::/0" "0.0.0.0")))))))
+                           (make-ip-set #I("::/0" "0.0.0.0")))))
+    (make-ip-set networks)
+    (is (every #'ip= networks networks-orig))))
 
 (test ip-set-union
   (is (ip= (ip-set-union (make-ip-set #I("10.0.0.0/24" "192.168.0.0/24" "ffff::/128"))
