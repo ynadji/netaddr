@@ -178,13 +178,20 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
   (print-unreadable-object (set out :type t)
     (format out "(~a)" (length (slot-value set 'set)))))
 
+(defgeneric slot-names (object)
+  (:documentation "Returns the list of slot names to copy in SHALLOW-COPY-OBJECT.")
+  (:method ((ip ip-address)) '(str version int))
+  (:method ((net ip-network)) '(first-ip last-ip str mask version))
+  (:method ((range ip-range)) '(first-ip last-ip version))
+  (:method ((set ip-set)) '(set)))
+
 (defun shallow-copy-object (original)
-  (let* ((class (class-of original))
-         (copy (allocate-instance class)))
-    (dolist (slot (mapcar #'closer-mop:slot-definition-name (closer-mop:class-slots class)))
+  "Returns a copy of ORIGINAL with the same bound slots. INITIALIZE-INSTANCE is not
+run on the copy."
+  (let ((copy (allocate-instance (class-of original))))
+    (dolist (slot (slot-names original))
       (when (slot-boundp original slot)
-        (setf (slot-value copy slot)
-              (slot-value original slot))))
+        (setf (slot-value copy slot) (slot-value original slot))))
     copy))
 
 ;;;; String and integer manipulation and interop.
