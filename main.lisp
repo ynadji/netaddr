@@ -183,14 +183,17 @@
 (defun ipv4-str? (str) (cl-ppcre:scan "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\.?\\b){4}$" str))
 (defun ipv6-str? (str) (cl-ppcre:scan "(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))" str))
 
+(defun join (separator strings)
+  (format nil (concatenate 'string "~{~A~^" separator "~}") strings))
+
 (defun ip-int-to-str-v4 (int)
   (let ((bytes (loop for offset from 24 downto 0 by 8 collect (ldb (byte 8 offset) int))))
-    (str:join "." (mapcar #'write-to-string bytes))))
+    (join "." (mapcar #'write-to-string bytes))))
 
 (defun ip-int-to-str-v6 (int)
   (let ((*print-base* 16)
         (bytes (loop for offset from 112 downto 0 by 16 collect (ldb (byte 16 offset) int))))
-    (str:join ":" (mapcar #'write-to-string bytes))))
+    (join ":" (mapcar #'write-to-string bytes))))
 
 (defun ip-int-to-str (int &optional (type 4))
   (ecase type
@@ -206,7 +209,7 @@
 
 (defun remove-leading-zeroes (str)
   (let ((parts (split-sequence #\: str)))
-    (str:join ":"
+    (join ":"
      (loop for part in parts
            collect (cl-ppcre:regex-replace "^0+(.+)$" part "\\1")))))
 
@@ -239,8 +242,8 @@
               ((= new-parts-len 1) "::") ; All run of 0s
               ((and (plusp pos)
                     (< (+ pos len) 8)) ; Run of 0s was in the middle
-               (str:join ":" (nsubstitute "" ":" parts :test #'string=)))
-              (t (str:join ":" parts)))))))
+               (join ":" (nsubstitute "" ":" parts :test #'string=)))
+              (t (join ":" parts)))))))
 
 (defun ipv6-parts-to-int (parts)
   (loop for x from 112 downto 0 by 16
