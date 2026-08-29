@@ -1,7 +1,7 @@
 # netaddr
 
-NETADDR is a Common Lisp library for manipulating IP addresses, subnets, ranges,
-and sets. It is inspired by its namesake library in Python,
+NETADDR is a zero dependency Common Lisp library for manipulating IP addresses,
+subnets, ranges, and sets. It is inspired by its namesake library in Python,
 [netaddr](https://github.com/netaddr/netaddr). NETADDR supports/provides:
 
 * IPv4 and IPv6 addresses, subnets, and ranges.
