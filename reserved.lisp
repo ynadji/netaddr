@@ -52,9 +52,8 @@
 (defun public? (ip)
   "Returns T if IP is a public IP address, otherwise NIL."
   (check-type ip ip-like)
-  (ax:if-let ((exception (contains? *non-routable-exceptions* ip)))
-    exception
-    (not (contains? *non-routable* ip))))
+  (or (contains? *non-routable-exceptions* ip)
+      (not (contains? *non-routable* ip))))
 
 (defun reserved? (ip)
   "Returns T if IP is a reserved IP address, otherwise NIL."

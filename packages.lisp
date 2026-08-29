@@ -1,6 +1,5 @@
 (defpackage :netaddr
   (:use :cl)
-  (:local-nicknames (:ax :alexandria))
   (:export :make-ip-address
            :make-ip-network
            :make-ip-range

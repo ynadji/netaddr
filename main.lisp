@@ -219,7 +219,9 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
          (num-non-empties (count "" parts :test-not #'equal))
          (zeroes (loop repeat (- 8 num-non-empties) collect "0")))
     (mapcar (lambda (x) (parse-integer x :radix 16))
-            (remove "" (ax:flatten (substitute zeroes "" parts :test #'equal :count 1)) :test #'equal))))
+            (remove "" (loop for part in (substitute zeroes "" parts :test #'equal :count 1)
+                             if (listp part) append part else collect part)
+                    :test #'equal))))
 
 (defun remove-leading-zeroes (str)
   (let ((parts (split-char #\: str)))
@@ -605,10 +607,8 @@ that are subsets of other IP-LIKEs already contained within the internal SET."
       (progn
         (with-slots (set) set
           (setf set
-                (ax:flatten
-                 (loop for range in set
-                       collect
-                       (subtract range (first ip-likes))))))
+                (loop for range in set
+                      append (subtract range (first ip-likes)))))
         (apply #'sub! set (rest ip-likes)))))
 
 (defun sub (set &rest ip-likes)
@@ -661,9 +661,8 @@ that are subsets of other IP-LIKEs already contained within the internal SET."
                            (loop for x in set1
                                  append (loop for y in set2
                                               with new-xs = (list x)
-                                              do (setf new-xs (ax:mappend (lambda (new-x)
-                                                                            (subtract new-x y))
-                                                                          new-xs))
+                                              do (setf new-xs (loop for new-x in new-xs
+                                                                 append (subtract new-x y)))
                                               finally (return new-xs))))))))
         diff)))
 
