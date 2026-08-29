@@ -16,9 +16,9 @@
       (with-slots ((set2 set)) s2
         (if (not (= (length set1) (length set2)))
             nil
-            (progn (sort set1 #'compare)
-                   (sort set2 #'compare)
-                   (every #'ip-equal set1 set2))))))
+            (every #'ip-equal
+                   (sort (copy-list set1) #'compare)
+                   (sort (copy-list set2) #'compare))))))
   ;; Default case when the types of the two arguments do not match.
   (:method ((x ip+) (y ip+))
     nil)
@@ -47,9 +47,9 @@
       (with-slots ((set2 set)) s2
         (if (not (= (length set1) (length set2)))
             nil
-            (progn (sort set1 #'compare)
-                   (sort set2 #'compare)
-                   (every #'ip-equalp set1 set2))))))
+            (every #'ip-equalp
+                   (sort (copy-list set1) #'compare)
+                   (sort (copy-list set2) #'compare))))))
   (:method ((x ip+) (y ip+))
     (ip-equal x y))
   (:method ((ip+1 t) (ip+2 t))

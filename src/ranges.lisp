@@ -33,11 +33,3 @@
                                            (- max-bits bits))))
                     (setf first (1+ (int (last-ip net))))
                     net))))
-
-(defun compact! (set)
-  "Compact an IP-SET's internal data structure to remove duplicates and IP-LIKEs
-that are subsets of other IP-LIKEs already contained within the internal SET."
-  (with-slots (set) set
-    (setf set (delete-duplicates (sort set #'compare)
-                                 :test #'subset? :from-end t)))
-  set)

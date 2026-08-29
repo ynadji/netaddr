@@ -529,3 +529,28 @@
   (fiveam:signals type-error (netaddr::->ip-range "10.0.0.1"))
   (fiveam:signals type-error (ip-equal "10.0.0.1" #I("10.0.0.1")))
   (fiveam:signals type-error (ip-equalp "10.0.0.1" #I("10.0.0.1"))))
+
+(test longest-match
+  ;; MAKE-IP-SET compacts away nested members, so nest them with ADD!.
+  (let ((s (make-ip-set #I("10.0.0.0/8" "192.168.0.0/16" "2001:db8::/32"))))
+    (add! s #I("10.1.0.0/16") #I("10.1.2.0/24") #I("2001:db8:1::/48"))
+    (is (ip= #I("10.1.2.0/24") (longest-match s #I("10.1.2.3"))))
+    (is (ip= #I("10.1.0.0/16") (longest-match s #I("10.1.3.3"))))
+    (is (ip= #I("10.0.0.0/8") (longest-match s #I("10.2.0.0/16"))))
+    (is (ip= #I("10.0.0.0/8") (longest-match s #I("10.1.0.0-10.2.0.0"))))
+    (is (ip= #I("2001:db8:1::/48") (longest-match s #I("2001:db8:1::1"))))
+    (is (ip= #I("2001:db8::/32") (longest-match s #I("2001:db8:2::1"))))
+    (is (null (longest-match s #I("11.0.0.0"))))
+    (is (null (longest-match s #I("::1"))))
+    ;; CONTAINS? on a set is the same operation.
+    (is (ip= #I("10.1.2.0/24") (contains? s #I("10.1.2.3"))))
+    ;; Members added after the index is built are found, and are preferred when
+    ;; more specific; SUB! keeps the index consistent.
+    (add! s #I("10.1.2.0/25"))
+    (is (ip= #I("10.1.2.0/25") (longest-match s #I("10.1.2.3"))))
+    (is (ip= #I("10.1.2.0/24") (longest-match s #I("10.1.2.200"))))
+    (sub! s #I("10.1.2.0/24"))
+    (is (null (longest-match s #I("10.1.2.3"))))
+    (is (contains? (longest-match s #I("10.1.3.3")) #I("10.1.3.3")))
+    (fiveam:signals type-error (longest-match s "10.1.2.3"))
+    (fiveam:signals type-error (longest-match "set" #I("10.1.2.3")))))

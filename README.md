@@ -50,7 +50,16 @@ an `IP-LIKE` as its second argument because:
 * An `IP-NETWORK` and an `IP-RANGE` `CONTAINS?` themselves, any subset of those
   networks or ranges, and any `IP-ADDRESS` that is a member of the network or
   range.
-* An `IP-SET` `CONTAINS?` any of its member `IP-LIKE`s, and so on.
+* An `IP-SET` `CONTAINS?` any of its member `IP-LIKE`s, and so on. When it
+  does, the most specific member containing the argument is returned, so
+  `CONTAINS?` on an `IP-SET` is also a longest prefix match; `LONGEST-MATCH` is
+  the same operation under a name that makes that intent clear.
+
+`IP-SET`s index their members lazily on first query, so membership tests and
+longest prefix matches cost O(log n) regardless of how many networks a set
+holds, and the set theoretic operations only examine members that actually
+overlap. Mutating a set (`ADD!`, `ADDNEW!`, `SUB!`) maintains the index
+incrementally.
 
 ## Equality
 

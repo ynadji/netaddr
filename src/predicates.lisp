@@ -79,10 +79,6 @@
     (check-type ip-like-1 ip-like)
     (check-type ip-like-2 ip-like)))
 
-;; To make CONTAINS? play nice with MEMBER.
-(defun in-set? (ip ip-block)
-  (contains? ip-block ip))
-
 (defgeneric contains? (ip+ ip-like)
   (:documentation "Returns T or an IP-LIKE if IP+ contains IP-LIKE, NIL otherwise.")
   (:method ((ip1 ip-address) (ip2 ip-address))
@@ -100,7 +96,7 @@
     (and (= (version ip) (version pair))
          (= (int ip) (int (first-ip pair)) (int (last-ip pair)))))
   (:method ((set ip-set) (ip-like ip-like))
-    (car (member ip-like (slot-value set 'set) :test #'in-set?)))
+    (longest-match set ip-like))
   (:method ((ip+ t) (ip-like t))
     (check-type ip+ ip+)
     (check-type ip-like ip-like)))

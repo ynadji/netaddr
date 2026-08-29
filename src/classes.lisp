@@ -151,7 +151,15 @@
         (t (make-ip-address ip-like-str))))
 
 (defclass ip-set (ip+)
-  ((set :initarg :entries :initform '())))
+  ((set :initarg :entries :initform '()
+        :documentation "The list of member IP-LIKEs.")
+   (index :initform nil
+          :documentation "Lazily built lookup index over INDEXED; see index.lisp.")
+   (indexed :initform nil
+            :documentation "The tail of SET that INDEX was built from. Members
+prepended since then precede it and are searched linearly.")
+   (scans :initform 0
+          :documentation "Linear-scan work done on the pending members; see SET-INDEX.")))
 
 (defun make-ip-set (set)
   "Make an IP-SET object given a list of IP-LIKEs."
@@ -181,7 +189,7 @@
   (:method ((ip ip-address)) '(str version int))
   (:method ((net ip-network)) '(first-ip last-ip str mask version))
   (:method ((range ip-range)) '(first-ip last-ip version))
-  (:method ((set ip-set)) '(set)))
+  (:method ((set ip-set)) '(set index indexed scans)))
 
 (defun shallow-copy-object (original)
   "Returns a copy of ORIGINAL with the same bound slots. INITIALIZE-INSTANCE is not

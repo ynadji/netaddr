@@ -3,12 +3,13 @@
   :description "A library for manipulating IP addresses, subnets, ranges, and sets."
   :author "Yacin Nadji <yacin@defmacro.cc>"
   :license "MIT"
-  :version "1.1.0"
+  :version "1.2.0"
   :pathname "src"
   :components ((:file "package")
                (:file "util")
                (:file "strings")
                (:file "classes")
+               (:file "index")
                (:file "compare")
                (:file "predicates")
                (:file "ranges")

@@ -14,6 +14,7 @@
            :sub!
            :ip=
            :contains?
+           :longest-match
            :contiguous?
            :disjoint?
            :subset?
