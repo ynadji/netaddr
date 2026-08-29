@@ -39,7 +39,7 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
                     (setf (slot-value ip 'version) 4
                           (slot-value ip 'int) int))
                    ((setf int (parse-ipv6 str))
-                    (setf (slot-value ip 'str) (compress-ipv6-str str)
+                    (setf (slot-value ip 'str) (ip-int-to-str-v6 int)
                           (slot-value ip 'version) 6
                           (slot-value ip 'int) int))
                    (t (error "~a is not an IP address string" str))))))
@@ -97,9 +97,6 @@ Empty substrings are kept, matching SPLIT-SEQUENCE:SPLIT-SEQUENCE."
       (check-type mask (integer 0 32) "in [0, 32] for IPv4 masks"))
     (when (= 6 (version first-ip))
       (check-type mask (integer 0 128) "in [0, 128] for IPv6 masks"))
-    (when (= 6 (version first-ip))
-      (setf (slot-value first-ip 'str)
-            (compress-ipv6-str (str first-ip))))
     (values first-ip last-ip)))
 
 (defun set-network! (net first-ip last-ip mask)
@@ -263,67 +260,75 @@ are not supported."
             (unless (or (eq groups :invalid) (/= (length groups) 8))
               (groups->int groups)))))))
 
-(defun join (separator strings)
-  (format nil (concatenate 'string "~{~A~^" separator "~}") strings))
-
 (defun ip-int-to-str-v4 (int)
-  (let ((bytes (loop for offset from 24 downto 0 by 8 collect (ldb (byte 8 offset) int))))
-    (join "." (mapcar #'write-to-string bytes))))
+  (declare ((unsigned-byte 32) int) (optimize speed))
+  (let ((out (make-string 15 :element-type 'base-char))
+        (pos 0))
+    (declare (fixnum pos))
+    (loop for shift from 24 downto 0 by 8
+          for octet = (ldb (byte 8 shift) int)
+          do (flet ((put (c) (setf (schar out pos) c) (incf pos)))
+               (when (>= octet 100) (put (code-char (+ 48 (floor octet 100)))))
+               (when (>= octet 10) (put (code-char (+ 48 (mod (floor octet 10) 10)))))
+               (put (code-char (+ 48 (mod octet 10))))
+               (when (plusp shift) (put #\.))))
+    (subseq out 0 pos)))
 
 (defun ip-int-to-str-v6 (int)
-  (let ((*print-base* 16)
-        (bytes (loop for offset from 112 downto 0 by 16 collect (ldb (byte 16 offset) int))))
-    (join ":" (mapcar #'write-to-string bytes))))
+  "Returns the canonical (RFC 5952) text form of the IPv6 address INT: lowercase
+hex groups without leading zeroes, and the first longest run of two or more zero
+groups replaced by \"::\"."
+  (declare ((unsigned-byte 128) int))
+  (let ((groups (make-array 8 :element-type '(unsigned-byte 16)))
+        (best-start -1)
+        (best-len 1))
+    (declare (fixnum best-start best-len))
+    (dotimes (i 8)
+      (setf (aref groups i) (ldb (byte 16 (* 16 (- 7 i))) int)))
+    ;; Find the first longest run of zero groups, if any is at least 2 long.
+    (let ((i 0))
+      (declare (fixnum i))
+      (loop while (< i 8)
+            do (if (zerop (aref groups i))
+                   (let ((j i))
+                     (declare (fixnum j))
+                     (loop while (and (< j 8) (zerop (aref groups j))) do (incf j))
+                     (when (> (- j i) best-len)
+                       (setf best-start i best-len (- j i)))
+                     (setf i j))
+                   (incf i))))
+    (let ((out (make-string 39 :element-type 'base-char))
+          (pos 0))
+      (declare (fixnum pos))
+      (flet ((put (c) (setf (schar out pos) c) (incf pos)))
+        (flet ((emit (from to)
+                 (loop for i from from below to
+                       do (when (> i from) (put #\:))
+                          (let ((g (aref groups i)) (started nil))
+                            (loop for shift from 12 downto 0 by 4
+                                  for d = (ldb (byte 4 shift) g)
+                                  do (when (or started (plusp d) (zerop shift))
+                                       (setf started t)
+                                       (put (schar "0123456789abcdef" d))))))))
+          (if (minusp best-start)
+              (emit 0 8)
+              (progn (emit 0 best-start)
+                     (put #\:) (put #\:)
+                     (emit (+ best-start best-len) 8)))))
+      (subseq out 0 pos))))
 
 (defun ip-int-to-str (int &optional (type 4))
   (ecase type
     (4 (ip-int-to-str-v4 int))
     (6 (ip-int-to-str-v6 int))))
 
-(defun remove-leading-zeroes (str)
-  (join ":"
-        (loop for part in (split-char #\: str)
-              collect (let ((trimmed (string-left-trim "0" part)))
-                        (if (and (string= trimmed "") (string/= part ""))
-                            "0"
-                            trimmed)))))
-
-(defun largest-run (item sequence)
-  (loop for i from 0 for x in sequence
-        with len = 0 with pos = -1 with max = 0 with max-pos = 0 do
-          (if (string= item x)
-              (progn (incf len)
-                     (when (minusp pos)
-                      (setf pos i))
-                     (when (> len max)
-                       (setf max len max-pos pos)))
-              (setf len 0 pos -1))
-        finally (return (values max max-pos))))
-
 (defun compress-ipv6-str (str)
-  (let* ((str (remove-leading-zeroes str))
-         (colon-list (list ":"))
-         (parts (split-char #\: str)))
-    (multiple-value-bind (len pos) (largest-run "0" parts)
-      (let* ((end (+ len pos))
-             (parts (if (< len 2)
-                        parts
-                        (delete "0"
-                                (replace parts colon-list :start1 pos :end1 end)
-                                :test #'string=
-                                :start pos :end end)))
-            (new-parts-len (length parts)))
-        (cond ((< len 2) str) ; No run of 0s
-              ((= new-parts-len 1) "::") ; All run of 0s
-              ((and (plusp pos)
-                    (< (+ pos len) 8)) ; Run of 0s was in the middle
-               (join ":" (nsubstitute "" ":" parts :test #'string=)))
-              (t (join ":" parts)))))))
+  "Returns the canonical (RFC 5952) form of the IPv6 address string STR."
+  (ip-int-to-str-v6 (or (parse-ipv6 str) (error "~a is not an IPv6 address string" str))))
 
 (defun integer-from-n-bits (n)
-  (loop repeat n with int = 0
-        do (setf int (logior 1 (ash int 1)))
-        finally (return int)))
+  "Returns the integer with its low N bits set."
+  (1- (ash 1 n)))
 
 (defun mask-ip! (ip mask &optional (upper-or-lower :upper))
   (let ((max-bits (ecase (version ip) (4 32) (6 128))))
