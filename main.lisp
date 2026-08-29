@@ -59,8 +59,8 @@
     (format out "~a" (str ip))))
 
 (defclass ip-pair (ip-like)
-    ((first-ip :reader first-ip)
-     (last-ip :reader last-ip)))
+  ((first-ip :reader first-ip)
+   (last-ip :reader last-ip)))
 
 (defgeneric first-ip (ip-pair)
   (:documentation "Returns the first IP-ADDRESS of an IP-NETWORK or IP-RANGE."))
@@ -75,30 +75,52 @@
   "Make an IP-NETWORK object from a string STR in CIDR notation, e.g., \"10.20.30.40/24\" or \"ffff::/96\"."
   (make-instance 'ip-network :str str))
 
+(defun find-ip-range-from-mask (first-ip mask)
+  (let ((last-ip (shallow-copy-object first-ip)))
+    (mask-ip! first-ip mask :lower)
+    (mask-ip! last-ip mask :upper)
+    (when (= 4 (version first-ip))
+      (check-type mask (integer 0 32) "in [0, 32] for IPv4 masks"))
+    (when (= 6 (version first-ip))
+      (check-type mask (integer 0 128) "in [0, 128] for IPv6 masks"))
+    (when (= 6 (version first-ip))
+      (setf (slot-value first-ip 'str)
+            (compress-ipv6-str (str first-ip))))
+    (values first-ip last-ip)))
+
+(defun set-network! (net first-ip last-ip mask)
+  (setf (slot-value net 'first-ip) first-ip
+        (slot-value net 'last-ip) last-ip
+        (slot-value net 'mask) mask
+        (slot-value net 'str) (format nil "~a/~a" (str first-ip) mask)))
+
 (defmethod initialize-instance :after ((net ip-network) &key)
-  (destructuring-bind (ip mask) (split-sequence #\/ (str net))
-    (let* ((mask (parse-integer mask))
-          (first-ip (make-ip-address ip))
-          (last-ip (shallow-copy-object first-ip)))
-      (mask-ip! first-ip mask :lower)
-      (mask-ip! last-ip mask :upper)
-      (setf (slot-value net 'version) (version first-ip))
-      (when (= 4 (version first-ip))
-        (check-type mask (integer 0 32) "in [0, 32] for IPv4 masks"))
-      (when (= 6 (version first-ip))
-        (check-type mask (integer 0 128) "in [0, 128] for IPv6 masks"))
-      (when (= 6 (version first-ip))
-        (setf (slot-value first-ip 'str)
-              (compress-ipv6-str (str first-ip))))
-      (setf (slot-value net 'first-ip) first-ip)
-      (setf (slot-value net 'last-ip) last-ip)
-      (setf (slot-value net 'mask) mask)
-      (setf (slot-value net 'str) (format nil "~a/~a" (str first-ip) mask)))))
+  (when (slot-boundp net 'str)
+    (destructuring-bind (ip mask) (split-sequence #\/ (str net))
+      (let* ((mask (parse-integer mask))
+             (first-ip (make-ip-address ip)))
+        (setf (slot-value net 'version) (version first-ip))
+        (multiple-value-bind (first-ip last-ip) (find-ip-range-from-mask first-ip mask)
+          (set-network! net first-ip last-ip mask))))))
 
 (defmethod print-object ((net ip-network) out)
   (print-unreadable-object (net out :type t)
     (with-slots (str mask) net
       (format out "~a" str))))
+
+(defun apply-mask! (ip mask)
+  "Make an IP-NETWORK by applying MASK to IP-ADDRESS IP. May modify IP."
+  (check-type ip ip-address)
+  (let ((net (make-instance 'ip-network)))
+    (multiple-value-bind (first-ip last-ip) (find-ip-range-from-mask ip mask)
+      (set-network! net first-ip last-ip mask)
+      net)))
+
+(defun apply-mask (ip mask)
+  "Make an IP-NETWORK by applying MASK to IP-ADDRESS IP."
+  (check-type ip ip-address) ; annoying duplication, but making shallow-copy-object work with non-objects will be more
+                             ; annoying
+  (apply-mask! (shallow-copy-object ip) mask))
 
 (defclass ip-range (ip-pair)
   ((first-ip :initarg :first-ip :accessor first-ip)

@@ -43,7 +43,9 @@
   (is (null (ignore-errors (make-ip-network "::/-1"))))
   (is (null (ignore-errors (make-ip-network "::/129"))))
   (is (null (ignore-errors (make-ip-set "::/129"))))
-  (is (null (ignore-errors (make-ip-set '("foo" "bar"))))))
+  (is (null (ignore-errors (make-ip-set '("foo" "bar")))))
+  (is (null (ignore-errors (apply-mask (make-ip-address "0.0.0.0") 64))))
+  (is (null (ignore-errors (apply-mask (make-ip-address "::") 129)))))
 
 (test subnet-corrects-str
   (is (string= "10.20.30.0/24" (str (make-ip-network "10.20.30.40/24"))))
@@ -64,6 +66,11 @@
                                                     (ash second 16)
                                                     (ash third 8)
                                                     fourth))))))))))
+
+(test apply-mask
+  (is (ip= (make-ip-network "10.0.0.0/24") (apply-mask (make-ip-address "10.0.0.123") 24)))
+  (is (ip= (make-ip-network "::/128") (apply-mask (make-ip-address "::") 128)))
+  (is (ip= (make-ip-network "::dada:beef/64") (apply-mask (make-ip-address "::cafe:babe") 64))))
 
 (test ipv4-v6-boundary
   (is (ip= (make-ip-address (1- (expt 2 32))) #I("255.255.255.255")))

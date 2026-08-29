@@ -10,6 +10,8 @@
            :add!
            :addnew
            :addnew!
+           :apply-mask
+           :apply-mask!
            :sub
            :sub!
            :ip=
