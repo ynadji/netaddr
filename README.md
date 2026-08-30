@@ -3,12 +3,12 @@
 NETADDR is a zero dependency Common Lisp library for manipulating IP addresses,
 subnets, ranges, and sets. It is inspired by its namesake library in Python,
 [netaddr](https://github.com/netaddr/netaddr). Confirmed to work on SBCL, ECL,
-and LispWorks. NETADDR supports/provides:
+ABCL, and LispWorks. NETADDR supports/provides:
 
-* IPv4 and IPv6 addresses, subnets, and ranges.
+* Datatypes for IPv4 and IPv6 addresses, subnets, and ranges.
 * Shorthand syntax for the above with a reader macro `#i`. See the [IP
   Syntax](#IP-syntax) section for details.
-* Helper lookup functions for reserved space, e.g., `PRIVATE?`, `RESERVED?`, and
+* Helper lookup functions for RFC reserved space, e.g., `PRIVATE?`, `RESERVED?`, and
   `PUBLIC?`.
 * An `IP-SET` data structure for working with sets of addresses, subnets, and
   ranges. See `MAKE-IP-SET`.
