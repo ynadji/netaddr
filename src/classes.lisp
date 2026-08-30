@@ -37,7 +37,7 @@
              (error "INT is not 0 <= ~a <= (1- (expt 2 128))" int))
            ;; An explicit :VERSION lets callers build small IPv6 addresses (e.g., ::1) from integers, which would
            ;; otherwise be inferred to be IPv4.
-           (let ((version (if (slot-boundp ip 'version)
+           (let ((version (if (and (slot-boundp ip 'version) (version ip))
                               (version ip)
                               (if (< int (expt 2 32)) 4 6))))
              (when (and (= version 4) (>= int (expt 2 32)))
@@ -46,13 +46,13 @@
                    (slot-value ip 'str) (ip-int-to-str int version)))))
         (t (error "Must specify either STR or INT."))))
 
-(defgeneric make-ip-address (str-or-int)
+(defgeneric make-ip-address (str-or-int &key version)
   (:documentation "Make an IP-ADDRESS object from a STRING or INTEGER representation.")
-  (:method ((str string))
+  (:method ((str string) &key &allow-other-keys)
     (make-instance 'ip-address :str str))
-  (:method ((int integer))
-    (make-instance 'ip-address :int int))
-  (:method ((foo t))
+  (:method ((int integer) &key version)
+    (make-instance 'ip-address :int int :version version))
+  (:method ((foo t) &key &allow-other-keys)
     (declare (ignore foo))
     (error "Must specify either STR or INT.")))
 
