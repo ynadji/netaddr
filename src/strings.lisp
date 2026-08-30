@@ -28,18 +28,17 @@ Octets must be decimal, in [0, 255], and have no leading zeroes."
 Returns the list of group values, or :INVALID if any group is malformed. An
 empty region yields NIL."
   (declare (simple-string str) (fixnum start end) (optimize speed))
-  (if (= start end)
-      '()
-      (loop with groups = '()
-            for group-start fixnum = start then (1+ group-end)
-            for group-end fixnum = (or (position #\: str :start group-start :end end) end)
-            do (unless (and (<= 1 (- group-end group-start) 4)
-                            (loop for j from group-start below group-end
-                                  always (digit-char-p (schar str j) 16)))
-                 (return :invalid))
-               (push (parse-integer str :start group-start :end group-end :radix 16) groups)
-            until (= group-end end)
-            finally (return (nreverse groups)))))
+  (unless (= start end)
+    (loop with groups = '()
+          for group-start fixnum = start then (1+ group-end)
+          for group-end fixnum = (or (position #\: str :start group-start :end end) end)
+          do (unless (and (<= 1 (- group-end group-start) 4)
+                          (loop for j from group-start below group-end
+                                always (digit-char-p (schar str j) 16)))
+               (return :invalid))
+             (push (parse-integer str :start group-start :end group-end :radix 16) groups)
+          until (= group-end end)
+          finally (return (nreverse groups)))))
 
 (defun parse-ipv6 (str)
   "If STR is a colon-separated hexadecimal IPv6 address (with at most one \"::\"),
