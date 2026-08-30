@@ -29,7 +29,7 @@
                                     (if (zerop first)
                                         max-bits
                                         (1- (integer-length (logand first (- first)))))))
-                         (net (apply-mask! (make-instance 'ip-address :int first :version version)
+                         (net (apply-mask (%make-ip-address first version)
                                            (- max-bits bits))))
                     (setf first (1+ (int (last-ip net))))
                     net))))

@@ -311,7 +311,7 @@
 
 (test sub
   (let* ((s (make-ip-set #i(10.0.0.0/24 1.1.1.1)))
-         (orig (netaddr::shallow-copy-object s)))
+         (orig (make-ip-set #i(10.0.0.0/24 1.1.1.1))))
     (is (ip= s orig))
     (is (ip= (sub s #i10.0.0.0/24) (make-ip-set #i(1.1.1.1))))
     (is (ip= s orig))
@@ -326,7 +326,7 @@
 
 (test addnew
   (let* ((s (make-ip-set #i(10.0.0.0/24 1.1.1.1)))
-         (orig (netaddr::shallow-copy-object s)))
+         (orig (make-ip-set #i(10.0.0.0/24 1.1.1.1))))
     (is (ip= s orig))
     (is (ip= (addnew s #i10.0.0.0/8) (make-ip-set #i(10.0.0.0/8 1.1.1.1))))
     (is (ip= (addnew s #i10.0.0.0/24) orig))
@@ -336,7 +336,7 @@
 
 (test ip-set
   (let* ((s (make-ip-set #i(10.0.0.0/24 1.1.1.1)))
-         (orig (netaddr::shallow-copy-object s))
+         (orig (make-ip-set #i(10.0.0.0/24 1.1.1.1)))
          (networks (mapcar #'make-ip-network (list "10.0.0.0/24" "10.0.0.0/16")))
          (networks-orig (copy-seq networks)))
     (is (ip= s orig))
@@ -491,11 +491,27 @@
   (is (search "10.0.0.1-10.0.0.9" (princ-to-string #i10.0.0.1-10.0.0.9)))
   (is (search "(2)" (princ-to-string (make-ip-set #i(10.0.0.0/24 ::1))))))
 
-(test shallow-copy-object
-  (dolist (ip-like #i(10.0.0.1 10.0.0.0/24 10.0.0.1-10.0.0.9))
-    (let ((copy (netaddr::shallow-copy-object ip-like)))
-      (is (not (eq ip-like copy)))
-      (is (ip= ip-like copy)))))
+(test copy-ip-set
+  (let* ((s (make-ip-set #i(10.0.0.0/24 1.1.1.1)))
+         (copy (netaddr::copy-ip-set s)))
+    (is (not (eq s copy)))
+    (is (ip= s copy))
+    ;; Mutating either side leaves the other alone.
+    (add! copy #i192.168.0.0/16)
+    (sub! s #i1.1.1.1)
+    (is (ip= copy (make-ip-set #i(10.0.0.0/24 1.1.1.1 192.168.0.0/16))))
+    (is (ip= s (make-ip-set #i(10.0.0.0/24))))))
+
+(test apply-mask-does-not-modify
+  (let ((ip #i192.168.1.1) (ip6 #i2001:db8::1))
+    (is (ip= #i192.168.1.0/24 (apply-mask ip 24)))
+    (is (ip= #i2001:db8::/32 (apply-mask ip6 32)))
+    (is (ip= #i192.168.1.1 ip))
+    (is (ip= #i2001:db8::1 ip6))
+    ;; Members are never modified behind a set's back.
+    (let ((s (make-ip-set (list ip))))
+      (apply-mask ip 24)
+      (is (contains? s #i192.168.1.1)))))
 
 (test split-char
   ;; Call through the function object so the out-of-line definition runs.

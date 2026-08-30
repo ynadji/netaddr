@@ -165,6 +165,12 @@ If SORTED is true, MEMBERS are in COMPARE order and the index is built directly.
                       (cons (direct v4) (direct v6)))))))
   set)
 
+(defun copy-ip-set (set)
+  "Returns a fresh IP-SET with the same members as SET, sharing its index."
+  (let ((copy (make-instance 'ip-set)))
+    (dolist (slot '(set index indexed scans) copy)
+      (setf (slot-value copy slot) (slot-value set slot)))))
+
 (defun add-members! (set members)
   "Prepends the list MEMBERS to the members of IP-SET SET. The index is kept;
 the new members are searched linearly until they are merged in."

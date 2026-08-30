@@ -46,7 +46,7 @@ subsets of other members. Returns SET."
 
 (defun addnew (set &rest ip-likes)
   "Creates a fresh IP-SET that contains the original contents of SET as well as the IP-LIKES that are not already a member or a subset of a member of SET. Returns the fresh IP-SET."
-  (let ((new-set (shallow-copy-object set)))
+  (let ((new-set (copy-ip-set set)))
     (apply #'addnew! new-set ip-likes)
     new-set))
 
@@ -57,7 +57,7 @@ subsets of other members. Returns SET."
 
 (defun add (set &rest ip-likes)
   "Creates a copy of SET with IP-LIKES prepended."
-  (let ((new-set (shallow-copy-object set)))
+  (let ((new-set (copy-ip-set set)))
     (apply #'add! new-set ip-likes)
     new-set))
 
@@ -101,7 +101,7 @@ subsets of other members. Returns SET."
 
 (defun sub (set &rest ip-likes)
   "Like SUB! but return a fresh IP-SET without modifying the argument SET in place."
-  (let ((new-set (shallow-copy-object set)))
+  (let ((new-set (copy-ip-set set)))
     (apply #'sub! new-set ip-likes)
     new-set))
 
@@ -117,7 +117,7 @@ subsets of other members. Returns SET."
   "Returns a fresh IP-SET that is the set intersection of all IP-SETS."
   (if (null ip-sets)
       (make-ip-set nil)
-      (let ((inter (shallow-copy-object (first ip-sets))))
+      (let ((inter (copy-ip-set (first ip-sets))))
         (check-type inter ip-set)
         (dolist (ip-set (rest ip-sets) inter)
           (check-type ip-set ip-set)
@@ -130,7 +130,7 @@ subsets of other members. Returns SET."
   "Returns a fresh IP-SET that is the set difference of (first IP-SETS) from (rest IP-SETS)."
   (if (null ip-sets)
       (make-ip-set nil)
-      (let ((diff (shallow-copy-object (first ip-sets))))
+      (let ((diff (copy-ip-set (first ip-sets))))
         (check-type diff ip-set)
         (dolist (ip-set (rest ip-sets) diff)
           (check-type ip-set ip-set)

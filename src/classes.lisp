@@ -78,15 +78,16 @@
   "Make an IP-NETWORK object from a string STR in CIDR notation, e.g., \"10.20.30.40/24\" or \"ffff::/96\"."
   (make-instance 'ip-network :str str))
 
-(defun find-ip-range-from-mask (first-ip mask)
-  (let ((last-ip (shallow-copy-object first-ip)))
-    (mask-ip! first-ip mask :lower)
-    (mask-ip! last-ip mask :upper)
-    (when (= 4 (version first-ip))
-      (check-type mask (integer 0 32) "in [0, 32] for IPv4 masks"))
-    (when (= 6 (version first-ip))
-      (check-type mask (integer 0 128) "in [0, 128] for IPv6 masks"))
-    (values first-ip last-ip)))
+(defun network-bounds (int version mask)
+  "Returns the first and last address, as integers, of the network with prefix
+length MASK that contains the address INT of the given VERSION."
+  (let ((max-bits (ecase version (4 32) (6 128))))
+    (ecase version
+      (4 (check-type mask (integer 0 32) "in [0, 32] for IPv4 masks"))
+      (6 (check-type mask (integer 0 128) "in [0, 128] for IPv6 masks")))
+    (let* ((host-bits (- max-bits mask))
+           (first (logand int (ash (integer-from-n-bits mask) host-bits))))
+      (values first (logior first (integer-from-n-bits host-bits))))))
 
 (defun set-network! (net first-ip last-ip mask)
   (setf (slot-value net 'first-ip) first-ip
@@ -95,32 +96,41 @@
         (slot-value net 'version) (version first-ip)
         (slot-value net 'str) (format nil "~a/~a" (str first-ip) mask)))
 
+(defun %make-ip-address (int version)
+  "Builds an IP-ADDRESS from an INT already known to be valid for VERSION,
+skipping INITIALIZE-INSTANCE's checks."
+  (let ((ip (allocate-instance (find-class 'ip-address))))
+    (setf (slot-value ip 'int) int
+          (slot-value ip 'version) version
+          (slot-value ip 'str) (ip-int-to-str int version))
+    ip))
+
+(defun set-network-from! (net ip mask)
+  "Sets NET to the network with prefix length MASK containing IP-ADDRESS IP.
+Fresh endpoint addresses are built; IP is not modified."
+  (let ((version (version ip)))
+    (multiple-value-bind (first last) (network-bounds (int ip) version mask)
+      (set-network! net
+                    (%make-ip-address first version)
+                    (%make-ip-address last version)
+                    mask))))
+
 (defmethod initialize-instance :after ((net ip-network) &key)
   (when (slot-boundp net 'str)
     (destructuring-bind (ip mask) (split-char #\/ (str net))
-      (let* ((mask (parse-integer mask))
-             (first-ip (make-ip-address ip)))
-        (multiple-value-bind (first-ip last-ip) (find-ip-range-from-mask first-ip mask)
-          (set-network! net first-ip last-ip mask))))))
+      (set-network-from! net (make-ip-address ip) (parse-integer mask)))))
 
 (defmethod print-object ((net ip-network) out)
   (print-unreadable-object (net out :type t)
     (with-slots (str mask) net
       (format out "~a" str))))
 
-(defun apply-mask! (ip mask)
-  "Make an IP-NETWORK by applying MASK to IP-ADDRESS IP. May modify IP."
+(defun apply-mask (ip mask)
+  "Make a fresh IP-NETWORK by applying MASK to IP-ADDRESS IP."
   (check-type ip ip-address)
   (let ((net (make-instance 'ip-network)))
-    (multiple-value-bind (first-ip last-ip) (find-ip-range-from-mask ip mask)
-      (set-network! net first-ip last-ip mask)
-      net)))
-
-(defun apply-mask (ip mask)
-  "Make an IP-NETWORK by applying MASK to IP-ADDRESS IP."
-  (check-type ip ip-address) ; annoying duplication, but making shallow-copy-object work with non-objects will be more
-                             ; annoying
-  (apply-mask! (shallow-copy-object ip) mask))
+    (set-network-from! net ip mask)
+    net))
 
 (defclass ip-range (ip-pair)
   ((first-ip :initarg :first-ip :accessor first-ip)
@@ -172,30 +182,3 @@ prepended since then precede it and are searched linearly.")
 (defmethod print-object ((set ip-set) out)
   (print-unreadable-object (set out :type t)
     (format out "(~a)" (length (slot-value set 'set)))))
-
-(defun mask-ip! (ip mask &optional (upper-or-lower :upper))
-  (let ((max-bits (ecase (version ip) (4 32) (6 128))))
-    (with-slots (int version) ip
-      (ecase upper-or-lower
-        (:lower (setf (slot-value ip 'int)
-                      (logand int (ash (integer-from-n-bits mask) (- max-bits mask)))))
-        (:upper (setf (slot-value ip 'int)
-                      (logior int (integer-from-n-bits (- max-bits mask))))))
-      (setf (slot-value ip 'str) (ip-int-to-str (int ip) version))
-      ip)))
-
-(defgeneric slot-names (object)
-  (:documentation "Returns the list of slot names to copy in SHALLOW-COPY-OBJECT.")
-  (:method ((ip ip-address)) '(str version int))
-  (:method ((net ip-network)) '(first-ip last-ip str mask version))
-  (:method ((range ip-range)) '(first-ip last-ip version))
-  (:method ((set ip-set)) '(set index indexed scans)))
-
-(defun shallow-copy-object (original)
-  "Returns a copy of ORIGINAL with the same bound slots. INITIALIZE-INSTANCE is not
-run on the copy."
-  (let ((copy (allocate-instance (class-of original))))
-    (dolist (slot (slot-names original))
-      (when (slot-boundp original slot)
-        (setf (slot-value copy slot) (slot-value original slot))))
-    copy))
