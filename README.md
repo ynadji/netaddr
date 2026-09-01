@@ -1,13 +1,14 @@
 # netaddr
 
-NETADDR is a Common Lisp library for manipulating IP addresses, subnets, ranges,
-and sets. It is inspired by its namesake library in Python,
-[netaddr](https://github.com/netaddr/netaddr). NETADDR supports/provides:
+NETADDR is a zero dependency Common Lisp library for manipulating IP addresses,
+subnets, ranges, and sets. It is inspired by its namesake library in Python,
+[netaddr](https://github.com/netaddr/netaddr). Confirmed to work on SBCL, ECL,
+ABCL, and LispWorks. NETADDR supports/provides:
 
-* IPv4 and IPv6 addresses, subnets, and ranges.
-* Shorthand syntax for the above with a reader macro `#I`. See the [IP
+* Datatypes for IPv4 and IPv6 addresses, subnets, and ranges.
+* Shorthand syntax for the above with a reader macro `#i`. See the [IP
   Syntax](#IP-syntax) section for details.
-* Helper lookup functions for reserved space, e.g., `PRIVATE?`, `RESERVED?`, and
+* Helper lookup functions for RFC reserved space, e.g., `PRIVATE?`, `RESERVED?`, and
   `PUBLIC?`.
 * An `IP-SET` data structure for working with sets of addresses, subnets, and
   ranges. See `MAKE-IP-SET`.
@@ -41,7 +42,7 @@ and sets. It is inspired by its namesake library in Python,
 
 Users of this library will only instantiate the leaf classes in the tree above,
 using their respective `MAKE-*` functions, or in the case of the three that
-inherit from `IP-LIKE`, the short-hand `#I` notation. `IP-SET`s are comprised of
+inherit from `IP-LIKE`, the short-hand `#i` notation. `IP-SET`s are comprised of
 a set of `IP-LIKE`s. Most operations will expect either `IP-LIKE`s as arguments
 and/or `IP+`s. For example, `CONTAINS?` takes an `IP+` as its first argument and
 an `IP-LIKE` as its second argument because:
@@ -50,7 +51,16 @@ an `IP-LIKE` as its second argument because:
 * An `IP-NETWORK` and an `IP-RANGE` `CONTAINS?` themselves, any subset of those
   networks or ranges, and any `IP-ADDRESS` that is a member of the network or
   range.
-* An `IP-SET` `CONTAINS?` any of its member `IP-LIKE`s, and so on.
+* An `IP-SET` `CONTAINS?` any of its member `IP-LIKE`s, and so on. When it
+  does, the most specific member containing the argument is returned, so
+  `CONTAINS?` on an `IP-SET` is also a longest prefix match; `LONGEST-MATCH` is
+  the same operation under a name that makes that intent clear.
+
+`IP-SET`s index their members lazily on first query, so membership tests and
+longest prefix matches cost O(log n) regardless of how many networks a set
+holds, and the set theoretic operations only examine members that actually
+overlap. Mutating a set (`ADD!`, `ADDNEW!`, `SUB!`) maintains the index
+incrementally.
 
 ## Equality
 
@@ -65,19 +75,19 @@ the latter allows comparisons across all leaf classes described in the [Class
 Hierarchy](#Class-Hierarchy). For example:
 
 ```
-NETADDR> (ip-equal #I("1.1.1.1") #I("1.1.1.1/32"))
+NETADDR> (ip-equal #i1.1.1.1 #i1.1.1.1/32)
 NIL
-NETADDR> (ip-equalp #I("1.1.1.1") #I("1.1.1.1/32"))
+NETADDR> (ip-equalp #i1.1.1.1 #i1.1.1.1/32)
 T
-NETADDR> (ip-equalp #I("1.1.1.1") #I("1.1.1.1/31"))
+NETADDR> (ip-equalp #i1.1.1.1 #i1.1.1.1/31)
 NIL
-NETADDR> (ip-equal #I("1.0.0.0/8") #I("1.0.0.0-1.255.255.255"))
+NETADDR> (ip-equal #i1.0.0.0/8 #i1.0.0.0-1.255.255.255)
 NIL
-NETADDR> (ip-equalp #I("1.0.0.0/8") #I("1.0.0.0-1.255.255.255"))
+NETADDR> (ip-equalp #i1.0.0.0/8 #i1.0.0.0-1.255.255.255)
 T
-NETADDR> (ip-equal (make-ip-set (list #I("1.1.1.1"))) (make-ip-set (list #I("1.1.1.1/32"))))
+NETADDR> (ip-equal (make-ip-set #i(1.1.1.1)) (make-ip-set #i(1.1.1.1/32)))
 NIL
-NETADDR> (ip-equalp (make-ip-set (list #I("1.1.1.1"))) (make-ip-set (list #I("1.1.1.1/32"))))
+NETADDR> (ip-equalp (make-ip-set #i(1.1.1.1)) (make-ip-set #i(1.1.1.1/32)))
 T
 ```
 
@@ -90,22 +100,33 @@ and `IP-RANGE`s, you'll want to use `IP-EQUALP`.
 
 ## IP Syntax
 
-NETADDR provides a shorthand syntax for defining `IP-LIKE`s from strings with
-the reader macro `#I` that can be enabled by first calling `ENABLE-IP-SYNTAX`.
-If a single argument is provided, a single object is returned. If multiple
-arguments are provided, a list of objects is returned. Example usage is shown
-below:
+NETADDR provides a shorthand syntax for writing `IP-LIKE`s with the reader
+macro `#i`, enabled by calling `ENABLE-IP-SYNTAX`. An address, network, or
+range written directly after `#i` reads as a single object; a parenthesized,
+whitespace-separated list of them reads as a list of objects. An element may
+also be a string, or `,FORM` to use the string that `FORM` evaluates to at run
+time. Example usage is shown below:
 
 ```
-NETADDR> #I("1.2.3.4")
+NETADDR> #i1.2.3.4
 #<IP-ADDRESS 1.2.3.4>
-NETADDR> #I("192.168.1.0/24")
+NETADDR> #i192.168.1.0/24
 #<IP-NETWORK 192.168.1.0/24>
-NETADDR> #I("::-ffff::")
+NETADDR> #i::-ffff::
 #<IP-RANGE ::-ffff::>
-NETADDR> #I("0.0.0.0" "1.1.1.1")
+NETADDR> #i(0.0.0.0 1.1.1.1)
 (#<IP-ADDRESS 0.0.0.0> #<IP-ADDRESS 1.1.1.1>)
 NETADDR> (multiple-value-bind (x y z) (values "1.1.1.1" "::/96" "10.20.30.40-11.20.30.40")
-           #I(x y z))
+           #i(,x ,y ,z))
 (#<IP-ADDRESS 1.1.1.1> #<IP-NETWORK ::/96> #<IP-RANGE 10.20.30.40-11.20.30.40>)
+NETADDR> (let ((prefix "10.0.0.0")) #i,(format nil "~a/8" prefix))
+#<IP-NETWORK 10.0.0.0/8>
 ```
+
+`ENABLE-IP-SYNTAX` copies the current readtable and adds `#i` to it, so other
+reader extensions you have enabled are kept; within a file being compiled or
+loaded the change is local to that file, and `DISABLE-IP-SYNTAX` restores the
+previous readtable. To use the syntax without changing `*READTABLE*`, bind it
+to `*IP-SYNTAX-READTABLE*`, or install `IP-READER` as the `#i` dispatch macro
+in a readtable of your own (for example with `named-readtables`'
+`:dispatch-macro-char`).

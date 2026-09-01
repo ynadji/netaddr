@@ -1,19 +1,20 @@
 (defpackage :netaddr
   (:use :cl)
-  (:local-nicknames (:ax :alexandria))
-  (:import-from :split-sequence #:split-sequence)
   (:export :make-ip-address
            :make-ip-network
            :make-ip-range
            :make-ip-set
+           :make-ip-like
            :add
            :add!
            :addnew
            :addnew!
+           :apply-mask
            :sub
            :sub!
            :ip=
            :contains?
+           :longest-match
            :contiguous?
            :disjoint?
            :subset?
@@ -31,6 +32,9 @@
            :ip-set-difference
            :ip-set-symmetric-difference
            :enable-ip-syntax
+           :disable-ip-syntax
+           :ip-reader
+           :*ip-syntax-readtable*
            :public?
            :private?
            :reserved?
