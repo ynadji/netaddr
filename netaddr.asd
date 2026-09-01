@@ -3,7 +3,7 @@
   :description "A library for manipulating IP addresses, subnets, ranges, and sets."
   :author "Yacin Nadji <yacin@defmacro.cc>"
   :license "MIT"
-  :version "2.0.0"
+  :version "2.0.1"
   :pathname "src"
   :components ((:file "package")
                (:file "util")
