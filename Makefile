@@ -9,6 +9,7 @@ test-all: test
 	time ros -L ecl run --eval "(asdf:test-system :netaddr)" --eval "(uiop:quit)"
 	time ros -L abcl-bin run --eval "(asdf:test-system :netaddr)" --eval "(uiop:quit)"
 	time ros -L lispworks run --eval "(asdf:test-system :netaddr)" --eval "(lw:quit)"
+	time ccl --eval "(asdf:test-system :netaddr)" --eval "(uiop:quit)"
 
 .PHONY: docs
 docs:
